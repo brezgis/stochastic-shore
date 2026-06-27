@@ -309,6 +309,20 @@ const SETTINGS = {
   drawWaterMotion: true,
   drawWaterSparkle: true,
 
+  // Open-ocean wave bands: faint swells drifting through the water.
+  drawOceanWaveBands: true,
+  oceanWaveAlpha: 0.18,
+  oceanWaveSpeed: 0.22,
+  oceanWaveSpacing: 42,
+  oceanWaveWidth: 5,
+
+  // Location-aware sand sparkle: tiny glints, strongest at sunrise/sunset.
+  drawSandSparkle: true,
+  sandSparkleAlpha: 0.18,
+  sandSparkleDensity: 0.16,
+  drySparkleBias: 0.72,
+  wetEdgeSparkleBias: 1.00,
+
   // Day / night cycle
   enableDayNight: true,
 
@@ -327,66 +341,26 @@ const SETTINGS = {
   // Lower if it feels too "filtered."
   lightingStrength: 1.0,
 
+  // Cinematic night overlays
+  drawMoonPath: true,
+  drawNightTwinkles: true,
+  drawFoamMoonGlow: true,
+
   pixelatedFullscreen: true,
 };
 
-// Anchor palettes through the day.
+// Cinematic keyframes: longer golden hour, slower sunset, richer dusk.
+// The real-clock mapping in currentDayTime() places these at realistic hours.
 const PALETTES = [
-  {
-    name: "sunrise",
-    t: 0.00,
-    sand: [242, 182, 109],
-    shallow: [142, 214, 200],
-    deep: [22, 127, 147],
-    foam: [255, 234, 200],
-    brightness: 1.02,
-    saturation: 0.92,
-    contrast: 0.90,
-  },
-  {
-    name: "day",
-    t: 0.25,
-    sand: [246, 211, 117],
-    shallow: [94, 216, 199],
-    deep: [7, 135, 168],
-    foam: [255, 248, 232],
-    brightness: 1.10,
-    saturation: 1.06,
-    contrast: 1.00,
-  },
-  {
-    name: "sunset",
-    t: 0.50,
-    sand: [233, 154, 78],
-    shallow: [94, 184, 173],
-    deep: [7, 95, 128],
-    foam: [255, 217, 168],
-    brightness: 0.92,
-    saturation: 1.00,
-    contrast: 1.04,
-  },
-  {
-    name: "night",
-    t: 0.75,
-    sand: [78, 88, 112],
-    shallow: [30, 103, 112],
-    deep: [7, 56, 76],
-    foam: [169, 217, 232],
-    brightness: 0.42,
-    saturation: 0.72,
-    contrast: 0.86,
-  },
-  {
-    name: "sunriseAgain",
-    t: 1.00,
-    sand: [242, 182, 109],
-    shallow: [142, 214, 200],
-    deep: [22, 127, 147],
-    foam: [255, 234, 200],
-    brightness: 1.02,
-    saturation: 0.92,
-    contrast: 0.90,
-  },
+  { name: "sunrise",       t: 0.00, sand: [239, 182, 128], shallow: [145, 209, 200], deep: [37, 119, 140], foam: [255, 233, 206], brightness: 0.98, saturation: 0.90, contrast: 0.90 },
+  { name: "goldenMorning", t: 0.14, sand: [245, 197, 121], shallow: [138, 220, 208], deep: [27, 132, 154], foam: [255, 243, 218], brightness: 1.05, saturation: 0.98, contrast: 0.95 },
+  { name: "day",           t: 0.33, sand: [246, 211, 117], shallow: [96, 219, 203],  deep: [8, 140, 171],  foam: [255, 248, 234], brightness: 1.10, saturation: 1.06, contrast: 1.00 },
+  { name: "lateDay",       t: 0.56, sand: [239, 195, 112], shallow: [101, 202, 191], deep: [18, 121, 149], foam: [255, 242, 220], brightness: 1.00, saturation: 1.00, contrast: 0.98 },
+  { name: "sunset",        t: 0.72, sand: [232, 156, 92],  shallow: [98, 177, 170],  deep: [18, 92, 122],  foam: [255, 221, 175], brightness: 0.90, saturation: 1.00, contrast: 1.04 },
+  { name: "dusk",          t: 0.82, sand: [130, 114, 129], shallow: [60, 124, 137],  deep: [15, 72, 98],   foam: [206, 218, 226], brightness: 0.64, saturation: 0.82, contrast: 0.96 },
+  { name: "night",         t: 0.90, sand: [78, 88, 112],   shallow: [28, 96, 108],   deep: [7, 45, 65],    foam: [178, 221, 238], brightness: 0.44, saturation: 0.70, contrast: 0.88 },
+  { name: "preDawn",       t: 0.97, sand: [112, 110, 125], shallow: [68, 127, 138],  deep: [16, 79, 98],   foam: [202, 218, 228], brightness: 0.60, saturation: 0.78, contrast: 0.90 },
+  { name: "sunriseAgain",  t: 1.00, sand: [239, 182, 128], shallow: [145, 209, 200], deep: [37, 119, 140], foam: [255, 233, 206], brightness: 0.98, saturation: 0.90, contrast: 0.90 },
 ];
 
 // Detected x-position of the sand/water boundary for each row.
@@ -394,6 +368,7 @@ let shoreline = [];
 
 // A cached copy of the untouched base image at internal resolution.
 let basePixels = null;
+let nightTwinkles = [];
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -408,6 +383,7 @@ resize();
 
 base.onload = () => {
   prepareBase();
+  buildNightTwinkles();
   initLife({
     RENDER_W,
     RENDER_H,
@@ -479,21 +455,28 @@ function smoothLine(line, passes = 4) {
 
 function loop(ms) {
   const t = ms / 1000;
+  const dayTime = currentDayTime(t);
 
   ctx.putImageData(basePixels, 0, 0);
 
   if (SETTINGS.drawWaterMotion) drawWaterMotion(t);
+  if (SETTINGS.drawOceanWaveBands) drawOceanWaveBands(t, dayTime);
   drawWetSandWash(t);
   drawFoamEdge(t);
   if (SETTINGS.drawWaterSparkle) drawWaterSparkle(t);
 
   let palette = null;
   if (SETTINGS.enableDayNight) {
-    const dayTime = currentDayTime(t);
     palette = getInterpolatedPalette(dayTime);
     applyTimeOfDayGrade(dayTime, palette);
     updateClockHud(dayTime);
   }
+  if (SETTINGS.drawSandSparkle) drawSandSparkle(t, dayTime);
+
+  const atmosphere = getAtmosphere(dayTime);
+  if (SETTINGS.drawMoonPath) drawMoonPath(t, atmosphere.nightFactor);
+  if (SETTINGS.drawNightTwinkles) drawNightTwinklesOverlay(t, atmosphere.nightFactor);
+  if (SETTINGS.drawFoamMoonGlow) drawFoamMoonGlow(atmosphere.nightFactor);
 
   const map = drawToScreen();
   updateAndDrawLife(screen, t, palette, map);
@@ -503,13 +486,26 @@ function loop(ms) {
 // Map wall-clock or demo time onto the palette cycle.
 // Palette anchors: 0 sunrise, 0.25 day, 0.5 sunset, 0.75 night.
 // Real-clock mapping: 6am -> sunrise, noon -> day, 6pm -> sunset, midnight -> night.
+// Map the real local clock onto the cinematic palette so each phase lands at a
+// realistic hour (sunrise ~6am, golden ~7:30, midday noon, sunset ~7pm,
+// night ~10:30pm+). Piecewise-linear between (hour -> palette time) anchors.
+const CLOCK_ANCHORS = [
+  [6.0, 0.00],  [7.5, 0.14],  [12.0, 0.33], [16.5, 0.56],
+  [19.0, 0.72], [20.5, 0.82], [22.5, 0.90], [28.5, 0.97], [30.0, 1.00],
+];
 function currentDayTime(t) {
   if (!SETTINGS.useRealClock) {
     return (SETTINGS.startDayTime + (t / SETTINGS.dayCycleSeconds)) % 1;
   }
   const now = new Date();
-  const hours = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-  return ((hours - 6 + 24) % 24) / 24;
+  let h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  if (h < 6) h += 24; // fold the small hours into the 6..30 cycle
+  for (let i = 0; i < CLOCK_ANCHORS.length - 1; i++) {
+    const [h0, p0] = CLOCK_ANCHORS[i];
+    const [h1, p1] = CLOCK_ANCHORS[i + 1];
+    if (h >= h0 && h <= h1) return p0 + (p1 - p0) * (h - h0) / (h1 - h0);
+  }
+  return 0;
 }
 
 const PHASE_LABELS = [
@@ -932,4 +928,326 @@ function smoothstep(edge0, edge1, x) {
 function noise01(x, y, z = 0) {
   const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
   return n - Math.floor(n);
+}
+
+// ===========================================================================
+// Cinematic shore layers (ported from the location-aware sparkle update)
+// ===========================================================================
+
+function buildNightTwinkles() {
+  nightTwinkles = [];
+  for (let i = 0; i < 160; i++) {
+    const x = Math.floor(lerp(RENDER_W * 0.48, RENDER_W - 8, noise01(i * 0.91, 3.3, 7.7)));
+    const y = Math.floor(lerp(8, RENDER_H - 8, noise01(i * 0.37, 8.8, 1.9)));
+    const size = noise01(i * 0.14, 9.1, 4.5) > 0.82 ? 2 : 1;
+    const phase = noise01(i * 0.72, 4.4, 8.2) * Math.PI * 2;
+    const speed = lerp(0.35, 1.2, noise01(i * 0.27, 6.6, 9.4));
+    const strength = lerp(0.25, 1.0, noise01(i * 0.13, 2.2, 4.6));
+    nightTwinkles.push({ x, y, size, phase, speed, strength });
+  }
+}
+
+function drawOceanWaveBands(t, dayTime = 0.33) {
+  // Subtle open-ocean swells: moving wave bands inside the water, separate
+  // from the shoreline foam. They echo the curve of the beach but stay offshore.
+  const atmosphere = typeof getAtmosphere === "function"
+    ? getAtmosphere(dayTime)
+    : { nightFactor: 0 };
+
+  const nightFactor = atmosphere.nightFactor || 0;
+  const imageData = ctx.getImageData(0, 0, RENDER_W, RENDER_H);
+  const pixels = imageData.data;
+
+  const speed = SETTINGS.oceanWaveSpeed;
+  const spacing = SETTINGS.oceanWaveSpacing;
+  const width = SETTINGS.oceanWaveWidth;
+
+  for (let y = 0; y < RENDER_H; y++) {
+    const edge = shoreline[y];
+
+    // Keep this away from the lapping/foam edge. This is "actual ocean" motion.
+    const startX = Math.max(Math.floor(edge + 38), Math.floor(RENDER_W * 0.42));
+
+    for (let x = startX; x < RENDER_W; x++) {
+      const i = (y * RENDER_W + x) * 4;
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+
+      if (!isWaterPixel(r, g, b)) continue;
+
+      const distFromShore = x - edge;
+
+      // Fade in after the shoreline, then fade out in the far/deep water.
+      const nearShoreFade = smoothstep(28, 110, distFromShore);
+      const farFade = 1 - smoothstep(RENDER_W * 0.58, RENDER_W * 0.86, distFromShore);
+      const waterZone = clamp01(nearShoreFade * (0.35 + farFade * 0.65));
+
+      // Curve the bands so they feel like soft swells rather than straight stripes.
+      const curve =
+        Math.sin(y * 0.034 + t * 0.18) * 15 +
+        Math.sin(y * 0.011 - t * 0.11) * 26;
+
+      // Subtracting time makes the swells drift toward shore.
+      const waveCoord = (distFromShore + curve - t * speed * 42) / spacing;
+      const wrapped = waveCoord - Math.floor(waveCoord);
+
+      const crest = 1 - smoothstep(0.0, width / spacing, wrapped);
+      const trailing = 1 - smoothstep(0.0, (width * 2.8) / spacing, wrapped);
+
+      // Break up the bands so they look watery, not like contour-map lines.
+      const breakup =
+        0.68 +
+        0.32 * Math.sin(y * 0.18 + x * 0.027 + t * 0.72) *
+        Math.sin(y * 0.041 - t * 0.35);
+
+      const crestAmount =
+        crest *
+        breakup *
+        waterZone *
+        SETTINGS.oceanWaveAlpha *
+        (nightFactor > 0.4 ? 0.55 : 1.0);
+
+      const troughAmount =
+        Math.max(0, trailing - crest) *
+        waterZone *
+        SETTINGS.oceanWaveAlpha *
+        0.10;
+
+      const crestColor = nightFactor > 0.35 ? [190, 226, 242] : [210, 255, 238];
+
+      tintPixelRaw(pixels, i, crestColor, crestAmount);
+      darkenPixelRaw(pixels, i, troughAmount);
+
+      // A few tiny bright pixels along crests, strongest in shallower water.
+      const shallow = 1 - clamp01(distFromShore / 230);
+      if (crestAmount > 0.055 && shallow > 0.18 && noise01(x * 0.09, y * 0.13, t * 0.16) > 0.82) {
+        tintPixelRaw(pixels, i, [245, 255, 250], crestAmount * 0.55);
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function drawSandSparkle(t, dayTime) {
+  const atmosphere = getAtmosphere(dayTime);
+  const goldenFactor = atmosphere.goldenFactor || 0;
+  const nightFactor = atmosphere.nightFactor || 0;
+  const dayFactor = gaussianCycle(dayTime, 0.33, 0.16);
+
+  // Sunrise/sunset strongest, daytime moderate, night almost none.
+  const baseStrength = 0.16;
+  const goldenBoost = goldenFactor * 0.82;
+  const dayLift = dayFactor * 0.16;
+  const nightFade = 1 - Math.min(1, nightFactor * 1.35);
+
+  const sparkleStrength =
+    SETTINGS.sandSparkleAlpha *
+    (baseStrength + goldenBoost + dayLift) *
+    nightFade;
+
+  if (sparkleStrength < 0.012) return;
+
+  // We sample pixels once so we can cheaply test whether each position is sand.
+  const sample = ctx.getImageData(0, 0, RENDER_W, RENDER_H).data;
+
+  ctx.save();
+
+  for (let y = 4; y < RENDER_H - 4; y += 2) {
+    const edge = shoreline[y];
+
+    // Keep sparkle on the sand side only.
+    const minX = Math.max(2, Math.floor(edge - 175));
+    const maxX = Math.max(minX + 1, Math.floor(edge - 9));
+
+    for (let x = minX; x < maxX; x += 2) {
+      const distToShore = edge - x;
+
+      // Pixel test: skip water.
+      const i = (y * RENDER_W + x) * 4;
+      const r = sample[i], g = sample[i + 1], b = sample[i + 2];
+      if (isWaterPixel(r, g, b)) continue;
+
+      // Two location zones:
+      // 1) wet-edge glints near the wet/dry transition, especially at low-angle light
+      // 2) dry-sand glints farther inland, softer and more sparse
+      const wetEdgeZone = 1 - smoothstep(8, 58, distToShore);
+      const midSandZone = smoothstep(20, 72, distToShore) * (1 - smoothstep(72, 132, distToShore));
+      const dryZone = smoothstep(70, 145, distToShore) * (1 - smoothstep(145, 188, distToShore));
+
+      // Time-of-day weighting:
+      // - golden hour: strong wet-edge sparkle
+      // - daytime: mild dry sand sparkle
+      // - night: almost none
+      const wetEdgeWeight =
+        SETTINGS.wetEdgeSparkleBias *
+        wetEdgeZone *
+        (0.10 + goldenFactor * 1.25);
+
+      const midSandWeight =
+        0.42 * midSandZone * (0.28 + goldenFactor * 0.42 + dayFactor * 0.28);
+
+      const dryWeight =
+        SETTINGS.drySparkleBias *
+        dryZone *
+        (0.10 + dayFactor * 0.50 + goldenFactor * 0.18);
+
+      const bandStrength = clamp01(wetEdgeWeight + midSandWeight + dryWeight);
+      if (bandStrength < 0.04) continue;
+
+      // Color temperature shifts with the light.
+      let sparkleColor = [255, 243, 215];  // default pale warm
+      if (goldenFactor > 0.28) {
+        sparkleColor = [255, 231, 176];    // warmer gold at sunrise/sunset
+      } else if (dayFactor > 0.20) {
+        sparkleColor = [250, 246, 230];    // pale white in full day
+      } else if (nightFactor > 0.20) {
+        sparkleColor = [210, 223, 234];    // very faint cool glint
+      }
+
+      // Placement: denser around wet-edge glints during golden hour,
+      // sparser in dry sand so it stays tasteful.
+      const drift = 0.5 + 0.5 * Math.sin(t * 1.05 + x * 0.045 + y * 0.07);
+      const spatialNoise = noise01(x * 0.11, y * 0.17, 3.7);
+      const chance =
+        SETTINGS.sandSparkleDensity *
+        bandStrength *
+        (0.52 + drift * 0.55) *
+        (wetEdgeZone > dryZone ? (0.95 + goldenFactor * 0.30) : 0.72);
+
+      if (spatialNoise > 1 - chance) {
+        const alpha = sparkleStrength * bandStrength * (0.36 + drift * 0.64);
+
+        // Main glint: tiny horizontal sparkle
+        ctx.fillStyle = `rgba(${sparkleColor[0]}, ${sparkleColor[1]}, ${sparkleColor[2]}, ${alpha})`;
+        ctx.fillRect(x, y, 2, 1);
+
+        // Wet-edge glints sometimes get a brighter "kiss" pixel.
+        if (wetEdgeZone > 0.25 && noise01(x * 0.23, y * 0.19, 9.1) > 0.80) {
+          ctx.fillStyle = `rgba(255, 255, 250, ${alpha * 0.90})`;
+          ctx.fillRect(x + 1, y - 1, 1, 1);
+        }
+
+        // Rare little cross-glints on drier sand in strong daylight/golden light.
+        if (dryZone > 0.24 && (goldenFactor > 0.16 || dayFactor > 0.40) && noise01(x * 0.09, y * 0.27, 5.4) > 0.91) {
+          ctx.fillStyle = `rgba(255, 251, 240, ${alpha * 0.65})`;
+          ctx.fillRect(x, y - 1, 1, 1);
+          ctx.fillRect(x + 1, y + 1, 1, 1);
+        }
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+function getAtmosphere(dayTime) {
+  // Smooth factors that peak in different parts of the cycle.
+  const nightFactor = gaussianCycle(dayTime, 0.91, 0.085);
+  const sunsetFactor = gaussianCycle(dayTime, 0.73, 0.08);
+  const sunriseFactor = gaussianCycle(dayTime, 0.09, 0.09);
+
+  return {
+    nightFactor,
+    sunsetFactor,
+    sunriseFactor,
+    goldenFactor: Math.max(sunsetFactor, sunriseFactor),
+  };
+}
+
+function drawMoonPath(t, nightFactor) {
+  if (nightFactor < 0.02) return;
+
+  ctx.save();
+
+  const alphaBase = 0.11 * nightFactor;
+  const xCenter = lerp(RENDER_W * 0.68, RENDER_W * 0.84, 0.5 + 0.5 * Math.sin(t * 0.08));
+  const yStart = 20;
+  const yEnd = RENDER_H - 14;
+
+  for (let y = yStart; y < yEnd; y += 2) {
+    const edge = shoreline[Math.floor(y)];
+    const waterMinX = edge + 24;
+    const verticalFade = 1 - Math.abs((y - RENDER_H * 0.52) / (RENDER_H * 0.52));
+    const bandWidth = 10 + verticalFade * 28;
+
+    for (let x = Math.max(waterMinX, Math.floor(xCenter - bandWidth)); x < Math.min(RENDER_W, Math.ceil(xCenter + bandWidth)); x += 2) {
+      const dx = Math.abs(x - xCenter);
+      const pathFalloff = 1 - clamp01(dx / bandWidth);
+      const shimmer = 0.55 + 0.45 * Math.sin(y * 0.12 + x * 0.03 + t * 0.9);
+      const a = alphaBase * pathFalloff * verticalFade * shimmer;
+
+      if (a <= 0.008) continue;
+
+      ctx.fillStyle = `rgba(205, 232, 255, ${a})`;
+      ctx.fillRect(x, y, 2, 1);
+
+      if (pathFalloff > 0.72 && noise01(x * 0.08, y * 0.1, t * 0.1) > 0.72) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.75})`;
+        ctx.fillRect(x + 1, y, 1, 1);
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawNightTwinklesOverlay(t, nightFactor) {
+  if (nightFactor < 0.02) return;
+
+  ctx.save();
+
+  for (const s of nightTwinkles) {
+    const edge = shoreline[Math.floor(clamp255(s.y))];
+    if (s.x < edge + 16) continue;
+
+    const pulse = 0.5 + 0.5 * Math.sin(t * s.speed + s.phase);
+    const a = nightFactor * s.strength * pulse * 0.18;
+
+    if (a < 0.01) continue;
+
+    ctx.fillStyle = `rgba(220, 240, 255, ${a})`;
+    ctx.fillRect(s.x, s.y, s.size, 1);
+
+    if (s.size > 1 && pulse > 0.78) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.8})`;
+      ctx.fillRect(s.x + 1, s.y - 1, 1, 1);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawFoamMoonGlow(nightFactor) {
+  if (nightFactor < 0.03) return;
+
+  ctx.save();
+  const alpha = 0.15 * nightFactor;
+
+  for (let y = 0; y < RENDER_H; y += 2) {
+    const edge = shoreline[y];
+    const wave = Math.sin(y * 0.05) * 4.0;
+    const glowX = edge - 3 + wave;
+
+    ctx.fillStyle = `rgba(196, 228, 245, ${alpha * 0.55})`;
+    ctx.fillRect(Math.floor(glowX), y, 3, 1);
+
+    if (noise01(y * 0.09, 5.7, 1.2) > 0.67) {
+      ctx.fillStyle = `rgba(236, 247, 255, ${alpha * 0.36})`;
+      ctx.fillRect(Math.floor(glowX - 2), y, 1, 1);
+    }
+  }
+
+  ctx.restore();
+}
+
+function gaussianCycle(t, center, width) {
+  const d = cycleDistance(t, center);
+  return Math.exp(-(d * d) / (2 * width * width));
+}
+
+function cycleDistance(a, b) {
+  const d = Math.abs(a - b);
+  return Math.min(d, 1 - d);
 }
