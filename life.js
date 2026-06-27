@@ -66,8 +66,8 @@ const ITEMS = [
   { key: 'shark_tooth1', file: 'shark_tooth1.png', w: 16, weight: 2 },
   { key: 'shark_tooth2', file: 'shark_tooth2.png', w: 16, weight: 2 },
   { key: 'megalodon_tooth', file: 'megalodon_tooth.png', w: 24, weight: 1 },
-  { key: 'message_in_bottle_1', file: 'message_in_bottle_1.png', w: 24, weight: 1.5 },
-  { key: 'message_in_bottle_2', file: 'message_in_bottle_2.png', w: 26, weight: 1.5 },
+  { key: 'message_in_bottle_1', file: 'message_in_bottle_1.png', w: 38, weight: 1.5 },
+  { key: 'message_in_bottle_2', file: 'message_in_bottle_2.png', w: 40, weight: 1.5 },
 ];
 
 // Behaviour profiles. band = [minOffset, maxOffset] from the shoreline edge
@@ -91,7 +91,7 @@ const CREATURES = [
   { key: 'hemit_crab2', file: 'hemit_crab2.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'hermit_crab3', file: 'hermit_crab3.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'seagull1', file: 'seagull1.png', w: 56, weight: 4, profile: 'gull', nativeRight: true },
-  { key: 'seagull_2', file: 'seagull_2.png', w: 74, weight: 4, profile: 'gull', nativeRight: true },
+  { key: 'seagull_2', file: 'seagull_2.png', w: 34, weight: 4, profile: 'gull', nativeRight: true },
   { key: 'sea_bird1', file: 'sea_bird1.png', w: 60, weight: 4, profile: 'gull', nativeRight: false },
   { key: 'horseshoe_crab1', file: 'horseshoe_crab1.png', w: 48, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
   { key: 'horseshoe_crab2', file: 'horseshoe_crab2.png', w: 44, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
