@@ -79,8 +79,8 @@ const PROFILES = {
   crab:      { speed: 42, band: [-58, 26], pause: [0.4, 1.4], step: [30, 90], face: 'side', life: [140, 260], bob: 0.0, sideways: true },
   hermit:    { speed: 30, band: [-135, -12], pause: [0.6, 2.0], step: [16, 50], face: 'side', life: [150, 280], bob: 0.0 },
   horseshoe: { speed: 16, band: [-22, 56], pause: [1.4, 3.2], step: [30, 80], face: 'topdown', native: 0.7, life: [160, 300], bob: 0.0 },
-  turtle:    { speed: 16, band: [-34, 250], pause: [2.0, 5.0], step: [40, 140], face: 'topdown', native: -HALF_PI, life: [140, 260], bob: 0.0 },
-  dolphin:   { speed: 48, band: [80, 360], pause: [0.4, 1.4], step: [140, 300], face: 'side', life: [60, 130], bob: 7.0 }, // lives out in the water, porpoising
+  turtle:    { speed: 16, band: [-34, 250], pause: [2.0, 5.0], step: [40, 140], face: 'topdown', native: -HALF_PI, life: [140, 260], bob: 0.0, wake: true },
+  dolphin:   { speed: 48, band: [80, 360], pause: [0.4, 1.4], step: [140, 300], face: 'side', life: [60, 130], bob: 7.0, wake: true }, // lives out in the water, porpoising
 };
 
 // Creatures: { key, file, w, weight, profile, nativeRight?, fromWater? }
@@ -104,6 +104,8 @@ const CREATURES = [
 // ----------------------------------------------------------------------------
 let W = 640, H = 360;
 let getShoreline = () => [];
+let onWake = null;         // optional (x,y,t) callback when a water creature swims
+let onStep = null;         // optional (x,y,t) callback when a land critter steps on sand
 const images = {};         // key -> HTMLImageElement (loaded)
 let items = [];
 let creatures = [];
@@ -338,6 +340,7 @@ function spawnCreature() {
 
 function updateCreatures(dt, t) {
   for (const c of creatures) {
+    if (c.dragging) continue;  // held by the cursor: no AI, no aging
     c.age += dt;
 
     if (c.state === 'arriving') {
@@ -351,20 +354,33 @@ function updateCreatures(dt, t) {
 
     // movement
     if (c.state !== 'leaving') {
+      if (c.dartT > 0) c.dartT -= dt;  // brief startled-dart speed burst
       if (c.pauseLeft > 0) {
         c.pauseLeft -= dt;
       } else {
         const dx = c.tx - c.x, dy = c.ty - c.y;
         const dist = Math.hypot(dx, dy);
         if (dist < 2.5) {
-          c.pauseLeft = rand(...c.prof.pause);
+          c.pauseLeft = c.dartT > 0 ? 0 : rand(...c.prof.pause);
           newTarget(c);
         } else {
-          const v = c.prof.speed * dt;
+          const v = c.prof.speed * (c.dartT > 0 ? 3.6 : 1) * dt;
           const ux = dx / dist, uy = dy / dist;
           c.x += ux * Math.min(v, dist);
           c.y += uy * Math.min(v, dist);
           c.lastVx = ux; c.lastVy = uy;
+          // land critters leave footprints in the sand
+          if (!c.prof.wake && onStep) {
+            c.stepT = (c.stepT || 0) - dt;
+            if (c.stepT <= 0) {
+              c.stepT = 0.32 + Math.random() * 0.18;
+              if (c.x < edgeAt(c.y) - 2) {           // only on the sand
+                c.stepSide = -(c.stepSide || 1);
+                const off = c.stepSide * 2.4;        // left/right of the path
+                onStep(c.x - uy * off, c.y + ux * off, t);
+              }
+            }
+          }
         }
       }
       // keep inside the band as the wavy shoreline shifts under them
@@ -372,6 +388,15 @@ function updateCreatures(dt, t) {
       c.x = clamp(c.x, e + c.prof.band[0], e + c.prof.band[1]);
       c.x = clamp(c.x, 8, W - 8);
       c.y = clamp(c.y, H * 0.06, H * 0.94);
+
+      // swimmers (turtle/dolphin) leave a wake of ripples behind them
+      if (c.prof.wake && c.state === 'roaming' && c.pauseLeft <= 0 && onWake) {
+        c.wakeT = (c.wakeT || 0) - dt;
+        if (c.wakeT <= 0) {
+          c.wakeT = 0.55 + Math.random() * 0.4;
+          onWake(c.x - c.lastVx * 6, c.y - c.lastVy * 6, t);
+        }
+      }
     }
   }
   creatures = creatures.filter((c) => c.alpha > 0.01);
@@ -492,6 +517,8 @@ export function updateAndDrawLife(g, t, palette, map) {
 export function initLife(opts) {
   W = opts.RENDER_W; H = opts.RENDER_H;
   getShoreline = opts.getShoreline;
+  onWake = opts.onWake || null;
+  onStep = opts.onStep || null;
   const base = opts.assetBase || './assets/';
 
   const all = [...ITEMS, ...CREATURES];

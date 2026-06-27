@@ -74,16 +74,17 @@
       #xp-body .filler { color: #555; font-style: italic; }
       #xp-body .poem { display: block; font-style: italic; line-height: 1.55; }
       #xp-body .by { display: block; margin-top: 9px; font-style: italic; color: #555; font-size: 12px; }
-      #xp-buttons { display: flex; justify-content: center; padding: 0 16px; }
-      #xp-ok {
+      #xp-buttons { display: flex; justify-content: center; gap: 10px; padding: 0 16px; }
+      #xp-buttons button {
         min-width: 80px; height: 25px; padding: 0 14px;
         font-family: inherit; font-size: 13px; color: #101010;
         background: linear-gradient(180deg,#fdfdfd,#dadada);
         border: 1px solid #6f6f6f; border-radius: 3px; cursor: pointer;
         box-shadow: inset 0 0 0 1px #fff;
       }
-      #xp-ok:active { background: linear-gradient(180deg,#cfcfcf,#fdfdfd); }
-      #xp-ok:focus { outline: 1px dotted #555; outline-offset: 2px; }
+      #xp-buttons button[hidden] { display: none; }
+      #xp-buttons button:active { background: linear-gradient(180deg,#cfcfcf,#fdfdfd); }
+      #xp-buttons button:focus { outline: 1px dotted #555; outline-offset: 2px; }
 
       /* Held shell: zoomed to center, gently rocking */
       #shell-stage {
@@ -138,6 +139,28 @@
         0%, 100% { transform: scale(0.6) rotate(-10deg); opacity: 0.2; }
         50% { transform: scale(1.25) rotate(10deg); opacity: 1; }
       }
+
+      /* Reeled-in catch: zooms to center and wiggles like a fish */
+      #fish-stage { position: fixed; inset: 0; z-index: 42; }
+      #fish-stage[hidden] { display: none; }
+      #fish-holder {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%) scale(1);
+        will-change: transform;
+      }
+      #fish-img {
+        display: block; width: 54vmin; height: auto; max-height: 72vh;
+        animation: fish-wiggle 0.9s ease-in-out infinite;
+        filter: drop-shadow(0 16px 34px rgba(0,0,0,0.5));
+        -webkit-user-drag: none; user-select: none;
+      }
+      @keyframes fish-wiggle {
+        0%   { transform: rotate(-3deg) translateY(-1%) scaleX(1.0); }
+        25%  { transform: rotate(2deg) translateY(1%) scaleX(0.97); }
+        50%  { transform: rotate(-2deg) translateY(-1%) scaleX(1.0); }
+        75%  { transform: rotate(3deg) translateY(1%) scaleX(0.97); }
+        100% { transform: rotate(-3deg) translateY(-1%) scaleX(1.0); }
+      }
     </style>
   </head>
   <body>
@@ -160,6 +183,12 @@
     </div>
     <audio id="gull-audio" src="./audio/seagull.mp3" preload="auto"></audio>
 
+    <div id="fish-stage" hidden>
+      <div id="fish-holder">
+        <img id="fish-img" alt="" draggable="false" />
+      </div>
+    </div>
+
     <div id="fx-stage"></div>
 
     <div id="xp-overlay" hidden>
@@ -174,6 +203,7 @@
         </div>
         <div id="xp-buttons">
           <button id="xp-ok">OK</button>
+          <button id="xp-ok2" hidden>Release</button>
         </div>
       </div>
     </div>

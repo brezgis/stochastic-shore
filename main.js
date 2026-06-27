@@ -12,7 +12,9 @@ const xpDialog = document.getElementById("xp-dialog");
 const xpTitle = document.getElementById("xp-title");
 const xpIcon = document.getElementById("xp-icon");
 const xpBody = document.getElementById("xp-body");
-let xpOnOk = null, xpOnClose = null;
+const xpOk = document.getElementById("xp-ok");
+const xpOk2 = document.getElementById("xp-ok2");
+let xpOnOk = null, xpOnClose = null, xpOnSecond = null;
 
 // Authentic-style Windows XP message-box icons, drawn as inline SVG.
 const XP_ICONS = {
@@ -32,13 +34,17 @@ const XP_ICONS = {
     <text x="16" y="23" text-anchor="middle" font-family="Tahoma, Arial, sans-serif" font-weight="bold" font-size="17" fill="#fff">?</text></svg>`,
 };
 
-// opts = { title, html, icon: 'info'|'warn'|'msg' }
-function openXP(opts, px, py, onOk, onClose) {
+// opts = { title, html, icon: 'info'|'warn'|'msg', okLabel?, secondLabel? }
+function openXP(opts, px, py, onOk, onClose, onSecond) {
   xpTitle.textContent = opts.title || "Local Disk (C:)";
   xpIcon.innerHTML = XP_ICONS[opts.icon] || XP_ICONS.info;
   xpBody.innerHTML = opts.html || "";
+  xpOk.textContent = opts.okLabel || "OK";
+  if (opts.secondLabel) { xpOk2.textContent = opts.secondLabel; xpOk2.hidden = false; }
+  else { xpOk2.hidden = true; }
   xpOnOk = onOk || null;
   xpOnClose = onClose || null;
+  xpOnSecond = onSecond || null;
   xpOverlay.hidden = false;
   // Open centered on the click, clamped so the whole box stays on-screen.
   const w = xpDialog.offsetWidth, h = xpDialog.offsetHeight, m = 8;
@@ -48,14 +54,16 @@ function openXP(opts, px, py, onOk, onClose) {
   xpDialog.style.top = top + "px";
 }
 function fireXP(which) {
-  const ok = xpOnOk, close = xpOnClose;
+  const ok = xpOnOk, close = xpOnClose, second = xpOnSecond;
   xpOverlay.hidden = true;
-  xpOnOk = xpOnClose = null;
+  xpOnOk = xpOnClose = xpOnSecond = null;
   if (which === "ok" && ok) ok();
   else if (which === "close" && close) close();
+  else if (which === "second" && second) second();
 }
 const xpOpen = () => !xpOverlay.hidden;
-document.getElementById("xp-ok").addEventListener("click", () => fireXP("ok"));
+xpOk.addEventListener("click", () => fireXP("ok"));
+xpOk2.addEventListener("click", () => fireXP("second"));
 document.getElementById("xp-close").addEventListener("click", () => fireXP("close"));
 xpOverlay.addEventListener("click", (e) => { if (e.target === xpOverlay) fireXP("close"); });
 window.addEventListener("keydown", (e) => { if (e.key === "Escape" && xpOpen()) fireXP("close"); });
@@ -259,22 +267,235 @@ function onDolphinClicked() {
 const genericFallback = (name) =>
   `<div class="name">${name}</div><div class="filler">…filler text — we'll write this together.</div>`;
 
-canvas.addEventListener("click", (e) => {
-  if (xpOpen() || holding || gullActive) return;
-  const p = pickAt(e.clientX, e.clientY);
-  if (!p) return;
-  const ent = p.entity;
-  if (ent.kind === "item" && ent.shell) { onShellClicked(p, e.clientX, e.clientY); return; }
-  if (/^(seagull|sea_bird)/.test(ent.key)) { onGullClicked(ent.ref, e.clientX, e.clientY); return; }
-  if (ent.key === "dolphin1") { onDolphinClicked(); return; }
-  const c = ent.ref && ent.ref.content; // fixed at spawn
-  if (c) openXP({ title: c.title, icon: c.icon, html: c.html }, e.clientX, e.clientY, () => {}, () => {});
-  else openXP({ title: "Local Disk (C:)", icon: "info", html: genericFallback(ent.name) }, e.clientX, e.clientY, () => {}, () => {});
+// A press becomes a DRAG past this many px; otherwise it's a CLICK.
+const DRAG_THRESH = 5;
+const SAND_MARK_LIFE = 45;                                  // seconds a sand line lingers
+const SKITTER = /^(crab|hermit|hemit|horseshoe|sandpiper)/; // critters you can move
+let sandStrokes = [];                                       // [{points, born}]
+let ptr = null;                                             // active pointer interaction
+
+// License-safe "dun-dun" error chime (no Microsoft assets).
+let errAudioCtx = null;
+function playErrorSound() {
+  try {
+    errAudioCtx = errAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ac = errAudioCtx, now = ac.currentTime;
+    [196.0, 146.83].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = "square"; o.frequency.value = f;
+      const t0 = now + i * 0.15;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.16, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.14);
+      o.connect(g).connect(ac.destination);
+      o.start(t0); o.stop(t0 + 0.16);
+    });
+  } catch (e) {}
+}
+
+// Soft license-safe reward chime when a catch surfaces (C–E–G).
+function playCatchSound() {
+  try {
+    errAudioCtx = errAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ac = errAudioCtx, now = ac.currentTime;
+    [523.25, 659.25, 783.99].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      const t0 = now + i * 0.08;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.12, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0006, t0 + 0.22);
+      o.connect(g).connect(ac.destination);
+      o.start(t0); o.stop(t0 + 0.24);
+    });
+  } catch (e) {}
+}
+
+const clampInternal = (p) => ({
+  x: Math.max(4, Math.min(RENDER_W - 4, p.x)),
+  y: Math.max(4, Math.min(RENDER_H - 4, p.y)),
 });
+
+function classifyDown(e) {
+  const pick = pickAt(e.clientX, e.clientY);
+  if (pick) {
+    const ent = pick.entity;
+    if (ent.kind === "item") return { type: "item", pick, ref: ent.ref };
+    if (SKITTER.test(ent.key)) return { type: "creatureDrag", pick, ref: ent.ref };
+    return { type: "creatureNoDrag", pick, ref: ent.ref }; // gull / turtle / dolphin
+  }
+  const wp = waterPointInternal(e.clientX, e.clientY);
+  if (wp && isWaterInternal(wp.x, wp.y)) return { type: "water" };
+  if (wp) return { type: "sand" };
+  return { type: "none" };
+}
+
+canvas.addEventListener("mousedown", (e) => {
+  if (xpOpen() || holding || gullActive || fishHolding) return;
+  e.preventDefault();
+  ptr = { ...classifyDown(e), startX: e.clientX, startY: e.clientY, dragging: false };
+});
+
 canvas.addEventListener("mousemove", (e) => {
-  if (xpOpen() || holding || gullActive) { canvas.style.cursor = "default"; return; }
-  canvas.style.cursor = pickAt(e.clientX, e.clientY) ? "pointer" : "default";
+  if (!ptr) {
+    if (xpOpen() || holding || gullActive || fishHolding) { canvas.style.cursor = "default"; return; }
+    const over = pickAt(e.clientX, e.clientY) || fishingRingAt(e.clientX, e.clientY) >= 0;
+    canvas.style.cursor = over ? "pointer" : "default";
+    return;
+  }
+  if (!ptr.dragging && Math.hypot(e.clientX - ptr.startX, e.clientY - ptr.startY) > DRAG_THRESH) {
+    ptr.dragging = true;
+    beginDrag(ptr, e);
+  }
+  if (ptr.dragging) duringDrag(ptr, e);
 });
+
+window.addEventListener("mouseup", (e) => {
+  if (!ptr) return;
+  const p = ptr; ptr = null;
+  if (p.dragging) endDrag(p, e);
+  else plainClick(p, e);
+});
+
+function beginDrag(p, e) {
+  if (p.type === "item") { p.ref.locked = true; canvas.style.cursor = "grabbing"; }
+  else if (p.type === "creatureDrag") { p.ref.dragging = true; canvas.style.cursor = "grabbing"; }
+  else if (p.type === "creatureNoDrag") { playErrorSound(); } // can't be moved
+  else if (p.type === "sand") {
+    p.stroke = { points: [], grains: [], born: performance.now() / 1000 };
+    sandStrokes.push(p.stroke);
+    addSandPoint(p, e);
+  }
+}
+
+function duringDrag(p, e) {
+  const wp = waterPointInternal(e.clientX, e.clientY);
+  if (!wp) return;
+  if (p.type === "item" || p.type === "creatureDrag") {
+    const c = clampInternal(wp);
+    p.ref.x = c.x; p.ref.y = c.y;
+    if (p.type === "creatureDrag") { p.ref.tx = c.x; p.ref.ty = c.y; }
+  } else if (p.type === "sand") {
+    addSandPoint(p, e);
+  } else if (p.type === "water") {
+    if (!p._rt || performance.now() - p._rt > 90) {
+      p._rt = performance.now();
+      if (isWaterInternal(wp.x, wp.y)) spawnClickRipple(wp.x, wp.y, performance.now() / 1000);
+    }
+  }
+}
+
+function endDrag(p, e) {
+  const wp = waterPointInternal(e.clientX, e.clientY);
+  const inWater = wp && isWaterInternal(wp.x, wp.y);
+  if (p.type === "item") {
+    p.ref.locked = false;
+    if (inWater) p.ref.state = "leaving"; // tossed into the sea -> gone
+  } else if (p.type === "creatureDrag") {
+    p.ref.dragging = false;
+    if (inWater) {
+      p.ref.state = "leaving"; // swims off
+    } else {
+      // startled dart: aim a short hop away and burst there fast
+      const ang = Math.random() * Math.PI * 2, d = 30 + Math.random() * 32;
+      p.ref.tx = p.ref.x + Math.cos(ang) * d;
+      p.ref.ty = p.ref.y + Math.sin(ang) * d;
+      p.ref.pauseLeft = 0;
+      p.ref.dartT = 0.55;
+    }
+  }
+  canvas.style.cursor = "default";
+}
+
+function plainClick(p, e) {
+  if (p.type === "item" || p.type === "creatureDrag" || p.type === "creatureNoDrag") {
+    const ent = p.pick.entity;
+    if (ent.kind === "item" && ent.shell) { onShellClicked(p.pick, e.clientX, e.clientY); return; }
+    if (/^(seagull|sea_bird)/.test(ent.key)) { onGullClicked(ent.ref, e.clientX, e.clientY); return; }
+    if (ent.key === "dolphin1") { onDolphinClicked(); return; }
+    const c = ent.ref && ent.ref.content;
+    if (c) openXP({ title: c.title, icon: c.icon, html: c.html }, e.clientX, e.clientY, () => {}, () => {});
+    else openXP({ title: "Local Disk (C:)", icon: "info", html: genericFallback(ent.name) }, e.clientX, e.clientY, () => {}, () => {});
+    return;
+  }
+  if (p.type === "water") {
+    const ri = fishingRingAt(e.clientX, e.clientY);
+    if (ri >= 0) { reelIn(ri); return; }
+    const wp = waterPointInternal(e.clientX, e.clientY);
+    if (wp && isWaterInternal(wp.x, wp.y)) spawnClickRipple(wp.x, wp.y, performance.now() / 1000);
+  }
+}
+
+function addSandPoint(p, e) {
+  const wp = waterPointInternal(e.clientX, e.clientY);
+  if (!wp) return;
+  if (!(wp.x < edgeAtInternal(wp.y) - 2 && wp.x > 2 && wp.y > 2 && wp.y < RENDER_H - 2)) return;
+  const pts = p.stroke.points;
+  const last = pts[pts.length - 1];
+  let w = 2.6;
+  if (last) {
+    const d = Math.hypot(wp.x - last.x, wp.y - last.y);
+    if (d < 0.7) return;                          // skip micro-moves so it doesn't clump
+    w = Math.max(1.0, Math.min(3.0, 3.2 - d * 0.16)); // faster drag -> thinner groove
+  }
+  pts.push({ x: wp.x, y: wp.y, w });
+  // crumbled sand pushed aside along the trench
+  if (Math.random() < 0.55) {
+    const ang = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 2.4;
+    p.stroke.grains.push({ x: wp.x + Math.cos(ang) * r, y: wp.y + Math.sin(ang) * r });
+  }
+}
+
+// Stroke a polyline segment-by-segment so each bit uses its own width.
+function strokeSandPath(points, ox, oy, addW, style) {
+  ctx.strokeStyle = style;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    ctx.lineWidth = Math.max(0.6, (a.w + b.w) / 2 + addW);
+    ctx.beginPath();
+    ctx.moveTo(a.x + ox, a.y + oy);
+    ctx.lineTo(b.x + ox, b.y + oy);
+    ctx.stroke();
+  }
+}
+
+const FOOTPRINT_LIFE = 22;  // seconds tracks linger
+let footprints = [];
+function spawnFootprint(x, y, t) {
+  footprints.push({ x, y, born: t });
+  if (footprints.length > 600) footprints.shift();
+}
+function drawFootprints(t) {
+  if (!footprints.length) return;
+  ctx.save();
+  for (const f of footprints) {
+    const alpha = (1 - (t - f.born) / FOOTPRINT_LIFE) * 0.32;
+    if (alpha <= 0.02) continue;
+    ctx.fillStyle = `rgba(60, 44, 27, ${alpha})`;
+    ctx.fillRect(Math.round(f.x), Math.round(f.y), 2, 1);
+  }
+  footprints = footprints.filter((f) => (t - f.born) < FOOTPRINT_LIFE);
+  ctx.restore();
+}
+
+function drawSandMarks(t) {
+  if (!sandStrokes.length) return;
+  ctx.save();
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const s of sandStrokes) {
+    const life = 1 - (t - s.born) / SAND_MARK_LIFE;
+    if (life <= 0.04 || s.points.length < 2) continue;
+    // sunlit lip on the upper-left edge of the groove
+    strokeSandPath(s.points, -1, -1, 0.4, `rgba(234, 214, 172, ${life * 0.5})`);
+    // dark carved groove, offset slightly into shadow
+    strokeSandPath(s.points, 0.4, 0.5, 0, `rgba(72, 53, 32, ${life * 0.6})`);
+    // crumbled grains beside the trench
+    ctx.fillStyle = `rgba(150, 128, 92, ${life * 0.5})`;
+    for (const g of s.grains) ctx.fillRect(Math.round(g.x), Math.round(g.y), 1, 1);
+  }
+  sandStrokes = sandStrokes.filter((s) => (t - s.born) < SAND_MARK_LIFE);
+  ctx.restore();
+}
 
 // Internal render size. It scales up to fullscreen.
 // Lower = chunkier pixels. Higher = more detail.
@@ -315,6 +536,14 @@ const SETTINGS = {
   oceanWaveSpeed: 0.22,
   oceanWaveSpacing: 42,
   oceanWaveWidth: 5,
+
+  // Water rings: cosmetic ripples where you click + persistent fishing "bites".
+  drawWaterRings: true,
+  clickRippleLife: 1.6,        // seconds a click ripple lives
+  clickRippleMaxR: 12,         // internal px it expands to
+  clickRippleRings: 3,
+  fishingRingCount: 2,         // how many catchable bites float at once
+  fishingRingMaxR: 9,          // internal px the bite rings pulse to
 
   // Location-aware sand sparkle: tiny glints, strongest at sunrise/sunset.
   drawSandSparkle: true,
@@ -369,6 +598,10 @@ let shoreline = [];
 // A cached copy of the untouched base image at internal resolution.
 let basePixels = null;
 let nightTwinkles = [];
+let clickRipples = [];   // cosmetic ripples where you click the water
+let fishingRings = [];   // persistent catchable "bites" floating on the water
+let nextFishingRingAt = 1;
+let lastMap = null;      // {scale,dx,dy} from drawToScreen, for screen<->water hit tests
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -389,6 +622,8 @@ base.onload = () => {
     RENDER_H,
     getShoreline: () => shoreline,
     assetBase: "./assets/",
+    onWake: (ix, iy, t) => spawnClickRipple(ix, iy, t), // wake-trail behind swimmers
+    onStep: (ix, iy, t) => spawnFootprint(ix, iy, t),   // tracks behind land critters
   });
   requestAnimationFrame(loop);
 };
@@ -464,6 +699,9 @@ function loop(ms) {
   drawWetSandWash(t);
   drawFoamEdge(t);
   if (SETTINGS.drawWaterSparkle) drawWaterSparkle(t);
+  if (SETTINGS.drawWaterRings) drawWaterRings(t);
+  drawFootprints(t);
+  drawSandMarks(t);
 
   let palette = null;
   if (SETTINGS.enableDayNight) {
@@ -479,6 +717,7 @@ function loop(ms) {
   if (SETTINGS.drawFoamMoonGlow) drawFoamMoonGlow(atmosphere.nightFactor);
 
   const map = drawToScreen();
+  lastMap = map;
   updateAndDrawLife(screen, t, palette, map);
   requestAnimationFrame(loop);
 }
@@ -1250,4 +1489,166 @@ function gaussianCycle(t, center, width) {
 function cycleDistance(a, b) {
   const d = Math.abs(a - b);
   return Math.min(d, 1 - d);
+}
+
+// ===========================================================================
+// Water rings: cosmetic click ripples + clickable fishing "bites"
+// ===========================================================================
+const idxY = (iy) => Math.max(0, Math.min(RENDER_H - 1, Math.round(iy)));
+const edgeAtInternal = (iy) => shoreline[idxY(iy)] || RENDER_W * 0.42;
+
+function waterPointInternal(cssX, cssY) {
+  if (!lastMap) return null;
+  return { x: (cssX - lastMap.dx) / lastMap.scale, y: (cssY - lastMap.dy) / lastMap.scale };
+}
+function isWaterInternal(ix, iy) {
+  return ix > edgeAtInternal(iy) + 6 && ix >= 0 && ix < RENDER_W && iy >= 0 && iy < RENDER_H;
+}
+function spawnClickRipple(ix, iy, t) {
+  clickRipples.push({ x: ix, y: iy, born: t });
+}
+function spawnFishingRing(t) {
+  const y = RENDER_H * (0.14 + Math.random() * 0.72);
+  const x = edgeAtInternal(y) + 40 + Math.random() * 130;
+  if (x > RENDER_W - 10) return;
+  fishingRings.push({ x, y, bob: Math.random() * Math.PI * 2 });
+}
+function fishingRingAt(cssX, cssY) {
+  const p = waterPointInternal(cssX, cssY);
+  if (!p) return -1;
+  for (let i = fishingRings.length - 1; i >= 0; i--) {
+    const r = fishingRings[i];
+    if (Math.hypot(p.x - r.x, p.y - r.y) <= SETTINGS.fishingRingMaxR + 7) return i;
+  }
+  return -1;
+}
+
+function drawWaterRings(t) {
+  // keep a couple of bites floating (not while a catch is on screen)
+  if (!fishHolding && fishingRings.length < SETTINGS.fishingRingCount && t >= nextFishingRingAt) {
+    spawnFishingRing(t);
+    nextFishingRingAt = t + 4 + Math.random() * 6;
+  }
+
+  ctx.save();
+  ctx.lineWidth = 1;
+
+  // fishing bites: darker, continuously pulsing concentric rings
+  for (const fr of fishingRings) {
+    const yb = fr.y + Math.sin(t * 0.8 + fr.bob) * 0.6;
+    for (let k = 0; k < 2; k++) {
+      const ph = ((t * 0.55 + fr.bob) + k * 0.5) % 1;
+      const r = 2 + ph * SETTINGS.fishingRingMaxR;
+      const alpha = 0.5 * (1 - ph);
+      if (alpha <= 0.02) continue;
+      ctx.strokeStyle = `rgba(12, 32, 42, ${alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(fr.x, yb, r, r * 0.66, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(8, 24, 34, 0.30)";
+    ctx.fillRect(Math.round(fr.x), Math.round(yb), 1, 1);
+  }
+
+  // cosmetic click ripples: light, expanding, fading
+  for (const cr of clickRipples) {
+    const a = (t - cr.born) / SETTINGS.clickRippleLife;
+    if (a <= 0 || a >= 1) continue;
+    const fade = 1 - a;
+    for (let k = 0; k < SETTINGS.clickRippleRings; k++) {
+      const ph = a - k * 0.2;
+      if (ph <= 0) continue;
+      const r = ph * SETTINGS.clickRippleMaxR;
+      const alpha = 0.5 * fade * (1 - k * 0.3);
+      if (alpha <= 0.02) continue;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(cr.x, cr.y, r, r * 0.66, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  clickRipples = clickRipples.filter((cr) => (t - cr.born) < SETTINGS.clickRippleLife);
+  ctx.restore();
+}
+
+// ===========================================================================
+// The catch: reel a fish (rarely an octopus) up to fill the screen
+// ===========================================================================
+const fishStage = document.getElementById("fish-stage");
+const fishHolder = document.getElementById("fish-holder");
+const fishImg = document.getElementById("fish-img");
+let fishHolding = null; // { key, rect } once a catch is on screen
+
+const CATCH = [
+  { key: "fish1", weight: 10 }, { key: "fish2", weight: 10 }, { key: "fish3", weight: 10 },
+  { key: "fish4", weight: 10 }, { key: "fish5", weight: 10 }, { key: "fish6", weight: 10 },
+  { key: "fish7", weight: 10 }, { key: "octopus1", weight: 2 }, // octopus is the rare catch
+];
+function pickCatch() {
+  let tot = 0; for (const c of CATCH) tot += c.weight;
+  let r = Math.random() * tot;
+  for (const c of CATCH) { r -= c.weight; if (r <= 0) return c.key; }
+  return CATCH[0].key;
+}
+const prettyCatch = (key) => key.startsWith("octopus") ? "You caught an octopus!" : "You caught a fish!";
+
+function fishHolderTransformAt(rect) {
+  const bigW = fishImg.offsetWidth || (Math.min(window.innerWidth, window.innerHeight) * 0.54);
+  const s0 = Math.max(0.04, (rect.r * 2) / bigW);
+  const dx0 = rect.cx - window.innerWidth / 2;
+  const dy0 = rect.cy - window.innerHeight / 2;
+  return `translate(calc(-50% + ${dx0}px), calc(-50% + ${dy0}px)) scale(${s0})`;
+}
+
+function reelIn(ringIndex) {
+  if (!lastMap) return;
+  const fr = fishingRings[ringIndex];
+  if (!fr) return;
+  fishingRings.splice(ringIndex, 1); // consume the bite
+  const key = pickCatch();
+  const rect = {
+    cx: lastMap.dx + fr.x * lastMap.scale,
+    cy: lastMap.dy + fr.y * lastMap.scale,
+    r: SETTINGS.fishingRingMaxR * lastMap.scale,
+  };
+  fishHolding = { key, rect };
+  playCatchSound();
+  fishImg.src = "./assets/" + key + ".png";
+  fishStage.hidden = false;
+  requestAnimationFrame(() => {
+    fishHolder.style.transition = "none";
+    fishHolder.style.opacity = "0";
+    fishHolder.style.transform = fishHolderTransformAt(rect);
+    void fishHolder.offsetWidth;
+    fishHolder.style.transition = "transform 1100ms cubic-bezier(0.22,0.61,0.36,1), opacity 800ms ease";
+    fishHolder.style.opacity = "1";
+    fishHolder.style.transform = "translate(-50%, -50%) scale(1)";
+  });
+}
+
+fishStage.addEventListener("click", (e) => {
+  if (!fishHolding || xpOpen()) return;
+  openXP(
+    { title: "Local Disk (C:)", icon: "info", html: `<div class="name">${prettyCatch(fishHolding.key)}</div>`, okLabel: "OK", secondLabel: "Release the fish" },
+    e.clientX, e.clientY,
+    () => {},            // OK = keep looking at it
+    () => {},            // X = keep looking at it
+    () => releaseFish()  // Release the fish
+  );
+});
+
+function releaseFish() {
+  if (!fishHolding) return;
+  const { rect } = fishHolding;
+  fishHolder.style.transition = "transform 750ms cubic-bezier(0.5,0,0.7,0.3), opacity 750ms ease";
+  fishHolder.style.transform = fishHolderTransformAt(rect);
+  fishHolder.style.opacity = "0";
+  const done = () => {
+    if (!fishHolding) return;
+    fishStage.hidden = true;
+    fishHolding = null;
+    nextFishingRingAt = performance.now() / 1000 + 3; // a fresh bite a moment later
+  };
+  fishHolder.addEventListener("transitionend", done, { once: true });
+  setTimeout(done, 950);
 }

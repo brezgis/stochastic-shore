@@ -11,6 +11,8 @@ Almost everything is clickable.
 - **Other wash-ups** offer small facts and stranger messages.
 - **Seagulls** do not appreciate being clicked.
 
+You can also **drag** shells, kelp, crabs, and the rest around the sand (drop them in the sea and they're gone), **draw in the sand** with a click-drag, and **go fishing**: click a ripple-ring on the water to reel up a fish — or, rarely, an octopus.
+
 Turn the sound on in the corner for ambient gulls and surf (independent of the radio).
 
 ## Running it
