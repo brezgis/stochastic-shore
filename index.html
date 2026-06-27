@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stochastic Shore</title>
+    <meta name="description" content="A daily, drifting beach. Things wash up and leave with the tide; hold a shell to your ear and hear live FM radio from somewhere in the world." />
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <meta property="og:title" content="Stochastic Shore" />
+    <meta property="og:description" content="Have you ever tried to listen to the ocean inside a shell? What if the ocean sounded like live FM radio?" />
+    <meta property="og:type" content="website" />
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #071f2a; }
+      canvas {
+        display: block; width: 100vw; height: 100vh;
+        image-rendering: pixelated; image-rendering: crisp-edges;
+      }
+      #hud {
+        position: fixed; left: 20px; bottom: 18px; color: #eef3f7;
+        font-family: ui-serif, Georgia, serif; font-size: 17px;
+        letter-spacing: 0.04em; opacity: 0.85;
+        text-shadow: 0 1px 5px rgba(0,0,0,0.9); pointer-events: none;
+      }
+      #hud .title { font-style: italic; }
+      #hud .meta { margin-left: 8px; opacity: 0.85; font-variant-numeric: tabular-nums; }
+      #sound {
+        position: fixed; right: 20px; bottom: 18px;
+        font-family: ui-serif, Georgia, serif; font-size: 15px;
+        letter-spacing: 0.04em; color: #eef3f7;
+        background: rgba(0, 18, 28, 0.36); border: 1px solid rgba(255,255,255,0.2);
+        padding: 10px 17px; border-radius: 999px; cursor: pointer;
+        backdrop-filter: blur(3px); opacity: 0.82; user-select: none;
+        transition: opacity 0.2s ease;
+      }
+      #sound:hover { opacity: 1; }
+
+      /* Windows XP popup — CSS box that auto-sizes to its text */
+      #xp-overlay { position: fixed; inset: 0; z-index: 50; }
+      #xp-overlay[hidden] { display: none; }
+      #xp-dialog {
+        position: absolute; left: 0; top: 0;
+        width: max-content; min-width: 210px; max-width: min(420px, 88vw);
+        background: #ECE9D8;
+        border: 1px solid #0831d9; border-top: none;
+        border-radius: 8px 8px 3px 3px;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+        font-family: Tahoma, Geneva, Verdana, sans-serif;
+        overflow: hidden; padding-bottom: 14px;
+      }
+      #xp-titlebar {
+        display: flex; align-items: center; justify-content: space-between;
+        height: 28px; padding: 0 5px 0 9px;
+        background: linear-gradient(180deg,#0058ee 0%,#3f8efb 9%,#2a7cf6 45%,#1a64ef 90%,#0a52d8 100%);
+        color: #fff; font-weight: bold; font-size: 13px;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.45);
+      }
+      #xp-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #xp-close {
+        flex: 0 0 auto; width: 22px; height: 21px; margin-left: 10px;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(180deg,#f3897c 0%,#e0513f 45%,#c5301d 100%);
+        border: 1px solid #fff; border-radius: 3px;
+        color: #fff; font-size: 12px; font-weight: bold; cursor: pointer;
+      }
+      #xp-close:active { background: linear-gradient(180deg,#c5301d,#e0513f); }
+      #xp-content { display: flex; gap: 13px; padding: 17px 18px 12px; }
+      #xp-icon {
+        flex: 0 0 auto; width: 34px; height: 34px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #xp-icon svg { width: 34px; height: 34px; display: block; }
+      #xp-body { font-size: 13px; color: #101010; line-height: 1.5; padding-top: 2px; }
+      #xp-body .name { font-weight: bold; }
+      #xp-body .filler { color: #555; font-style: italic; }
+      #xp-body .poem { display: block; font-style: italic; line-height: 1.55; }
+      #xp-body .by { display: block; margin-top: 9px; font-style: italic; color: #555; font-size: 12px; }
+      #xp-buttons { display: flex; justify-content: center; padding: 0 16px; }
+      #xp-ok {
+        min-width: 80px; height: 25px; padding: 0 14px;
+        font-family: inherit; font-size: 13px; color: #101010;
+        background: linear-gradient(180deg,#fdfdfd,#dadada);
+        border: 1px solid #6f6f6f; border-radius: 3px; cursor: pointer;
+        box-shadow: inset 0 0 0 1px #fff;
+      }
+      #xp-ok:active { background: linear-gradient(180deg,#cfcfcf,#fdfdfd); }
+      #xp-ok:focus { outline: 1px dotted #555; outline-offset: 2px; }
+
+      /* Held shell: zoomed to center, gently rocking */
+      #shell-stage {
+        position: fixed; inset: 0; z-index: 40;
+        background: rgba(4, 12, 16, 0.18);
+      }
+      #shell-stage[hidden] { display: none; }
+      #shell-holder {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%) scale(1);
+        will-change: transform;
+      }
+      #shell-img {
+        display: block; width: 46vmin; height: auto; max-height: 72vh;
+        animation: shell-rock 4.4s ease-in-out infinite alternate;
+        filter: drop-shadow(0 18px 32px rgba(0,0,0,0.55));
+        -webkit-user-drag: none; user-select: none;
+      }
+      @keyframes shell-rock {
+        from { transform: rotate(-4.5deg); }
+        to   { transform: rotate(4.5deg); }
+      }
+
+      /* Seagull jump-scare: a head peeking in over the screen edge */
+      #gull-stage { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+      #gull-stage[hidden] { display: none; }
+      #gull-img {
+        position: absolute; bottom: 0; height: 78vh; width: auto;
+        filter: drop-shadow(0 6px 26px rgba(0,0,0,0.55));
+        -webkit-user-drag: none; user-select: none;
+      }
+      #gull-img.from-left { left: 0; }
+      #gull-img.from-right { right: 0; }
+
+      /* Dolphin sparkle + rainbow */
+      #fx-stage { position: fixed; inset: 0; z-index: 44; pointer-events: none; opacity: 0; }
+      #fx-stage.show { animation: fx-fade 2.8s ease forwards; }
+      @keyframes fx-fade {
+        0% { opacity: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; }
+      }
+      #fx-rainbow {
+        position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%);
+        width: 70vmin; height: 35vmin; opacity: 0.92;
+        filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+      }
+      .fx-sparkle {
+        position: absolute; pointer-events: none;
+        animation: fx-twinkle 1.6s ease-in-out infinite;
+        text-shadow: 0 0 8px rgba(255,255,255,0.8);
+      }
+      @keyframes fx-twinkle {
+        0%, 100% { transform: scale(0.6) rotate(-10deg); opacity: 0.2; }
+        50% { transform: scale(1.25) rotate(10deg); opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="shore"></canvas>
+    <div id="hud">
+      <span class="title">stochastic shore</span><span class="meta" id="meta"></span>
+    </div>
+    <button id="sound" aria-pressed="false">♪ sound: off</button>
+    <audio id="ambience" src="./audio/ambience.mp3" loop preload="auto"></audio>
+
+    <div id="shell-stage" hidden>
+      <div id="shell-holder">
+        <img id="shell-img" alt="" draggable="false" />
+      </div>
+    </div>
+    <audio id="shell-audio" preload="none"></audio>
+
+    <div id="gull-stage" hidden>
+      <img id="gull-img" alt="" draggable="false" />
+    </div>
+    <audio id="gull-audio" src="./audio/seagull.mp3" preload="auto"></audio>
+
+    <div id="fx-stage"></div>
+
+    <div id="xp-overlay" hidden>
+      <div id="xp-dialog" role="dialog" aria-modal="true">
+        <div id="xp-titlebar">
+          <span id="xp-title">Local Disk (C:)</span>
+          <button id="xp-close" aria-label="Close">&#10005;</button>
+        </div>
+        <div id="xp-content">
+          <div id="xp-icon" class="info"></div>
+          <div id="xp-body"></div>
+        </div>
+        <div id="xp-buttons">
+          <button id="xp-ok">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Ambient sound toggle. Starts off; quiet when enabled.
+      (function () {
+        const btn = document.getElementById("sound");
+        const audio = document.getElementById("ambience");
+        audio.volume = 0.22;
+        let on = false;
+        btn.addEventListener("click", async () => {
+          on = !on;
+          if (on) {
+            try { await audio.play(); }
+            catch (e) { on = false; }
+          } else {
+            audio.pause();
+          }
+          btn.textContent = on ? "♪ sound: on" : "♪ sound: off";
+          btn.setAttribute("aria-pressed", String(on));
+        });
+      })();
+    </script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
