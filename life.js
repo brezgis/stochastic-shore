@@ -85,13 +85,13 @@ const PROFILES = {
 
 // Creatures: { key, file, w, weight, profile, nativeRight?, fromWater? }
 const CREATURES = [
-  { key: 'sandpiper_2', file: 'sandpiper_2.png', w: 40, weight: 10, profile: 'sandpiper', nativeRight: true },
+  { key: 'sandpiper_2', file: 'sandpiper_2.png', w: 46, weight: 10, profile: 'sandpiper', nativeRight: true },
   { key: 'crab2', file: 'crab2.png', w: 52, weight: 7, profile: 'crab', nativeRight: true },
   { key: 'hermit_crab1', file: 'hermit_crab1.png', w: 32, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'hemit_crab2', file: 'hemit_crab2.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'hermit_crab3', file: 'hermit_crab3.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'seagull1', file: 'seagull1.png', w: 56, weight: 4, profile: 'gull', nativeRight: true },
-  { key: 'seagull_2', file: 'seagull_2.png', w: 34, weight: 4, profile: 'gull', nativeRight: true },
+  { key: 'seagull_2', file: 'seagull_2.png', w: 27, weight: 4, profile: 'gull', nativeRight: true },
   { key: 'sea_bird1', file: 'sea_bird1.png', w: 60, weight: 4, profile: 'gull', nativeRight: false },
   { key: 'horseshoe_crab1', file: 'horseshoe_crab1.png', w: 48, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
   { key: 'horseshoe_crab2', file: 'horseshoe_crab2.png', w: 44, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
