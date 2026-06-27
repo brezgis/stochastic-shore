@@ -189,7 +189,7 @@ const pickArr = (a) => a[Math.floor(Math.random() * a.length)];
 
 function onGullClicked(ref, px, py) {
   openXP(
-    { title: "Local Disk (C:)", icon: "warn", html: "Are you sure?" },
+    { title: "Seagull", icon: "warn", html: "Are you sure?" },
     px, py,
     () => showGull(ref),  // OK = let it in
     () => {}              // X = nope
@@ -223,7 +223,7 @@ function showGull(ref) {
   const px = fromLeft ? window.innerWidth * 0.72 : window.innerWidth * 0.28;
   const py = window.innerHeight * 0.34;
   openXP(
-    { title: "Notice", icon: "warn", html: `<div class="name">${squawk}</div>` },
+    { title: "Seagull", icon: "warn", html: `<div class="name">${squawk}</div>` },
     px, py,
     () => dismissGull(),
     () => dismissGull()
@@ -270,7 +270,9 @@ const genericFallback = (name) =>
 // A press becomes a DRAG past this many px; otherwise it's a CLICK.
 const DRAG_THRESH = 5;
 const SAND_MARK_LIFE = 45;                                  // seconds a sand line lingers
-const SKITTER = /^(crab|hermit|hemit|horseshoe|sandpiper)/; // critters you can move
+const SKITTER = /^(crab|hermit|hemit|horseshoe|sandpiper|seagull|sea_bird)/; // critters you can move
+const GULL = /^(seagull|sea_bird)/;     // grumpy: errors when grabbed, won't swim
+const NO_WATER = /^(sandpiper|seagull|sea_bird)/; // birds hop back out of the sea
 let sandStrokes = [];                                       // [{points, born}]
 let ptr = null;                                             // active pointer interaction
 
@@ -359,8 +361,11 @@ window.addEventListener("mouseup", (e) => {
 
 function beginDrag(p, e) {
   if (p.type === "item") { p.ref.locked = true; canvas.style.cursor = "grabbing"; }
-  else if (p.type === "creatureDrag") { p.ref.dragging = true; canvas.style.cursor = "grabbing"; }
-  else if (p.type === "creatureNoDrag") { playErrorSound(); } // can't be moved
+  else if (p.type === "creatureDrag") {
+    p.ref.dragging = true; canvas.style.cursor = "grabbing";
+    if (GULL.test(p.ref.def.key)) playErrorSound(); // gull protests being grabbed
+  }
+  else if (p.type === "creatureNoDrag") { playErrorSound(); } // turtle/dolphin can't be moved
   else if (p.type === "sand") {
     p.stroke = { points: [], grains: [], born: performance.now() / 1000 };
     sandStrokes.push(p.stroke);
@@ -385,23 +390,39 @@ function duringDrag(p, e) {
   }
 }
 
+function sinkIntoSea(ref, wp) {
+  ref.state = "leaving";
+  ref.fastLeave = true;                 // quick fade
+  const now = performance.now() / 1000;
+  spawnClickRipple(wp.x, wp.y, now);     // a little water-circle left behind
+  spawnClickRipple(wp.x, wp.y, now + 0.14);
+}
+
+function dartFrom(ref, x, y) {
+  const ang = Math.random() * Math.PI * 2, d = 30 + Math.random() * 32;
+  ref.tx = x + Math.cos(ang) * d;
+  ref.ty = y + Math.sin(ang) * d;
+  ref.pauseLeft = 0;
+  ref.dartT = 0.55;
+}
+
 function endDrag(p, e) {
   const wp = waterPointInternal(e.clientX, e.clientY);
   const inWater = wp && isWaterInternal(wp.x, wp.y);
   if (p.type === "item") {
     p.ref.locked = false;
-    if (inWater) p.ref.state = "leaving"; // tossed into the sea -> gone
+    if (inWater) sinkIntoSea(p.ref, wp); // tossed into the sea -> sinks & fades
   } else if (p.type === "creatureDrag") {
     p.ref.dragging = false;
-    if (inWater) {
-      p.ref.state = "leaving"; // swims off
+    if (inWater && NO_WATER.test(p.ref.def.key)) {
+      // birds hate the water — hop back onto the sand
+      p.ref.x = Math.max(8, edgeAtInternal(wp.y) - (12 + Math.random() * 20));
+      p.ref.y = Math.max(8, Math.min(RENDER_H - 8, wp.y));
+      dartFrom(p.ref, p.ref.x, p.ref.y);
+    } else if (inWater) {
+      sinkIntoSea(p.ref, wp); // crabs etc. slip under
     } else {
-      // startled dart: aim a short hop away and burst there fast
-      const ang = Math.random() * Math.PI * 2, d = 30 + Math.random() * 32;
-      p.ref.tx = p.ref.x + Math.cos(ang) * d;
-      p.ref.ty = p.ref.y + Math.sin(ang) * d;
-      p.ref.pauseLeft = 0;
-      p.ref.dartT = 0.55;
+      dartFrom(p.ref, p.ref.x, p.ref.y); // dropped on sand: startled dart
     }
   }
   canvas.style.cursor = "default";
@@ -414,8 +435,8 @@ function plainClick(p, e) {
     if (/^(seagull|sea_bird)/.test(ent.key)) { onGullClicked(ent.ref, e.clientX, e.clientY); return; }
     if (ent.key === "dolphin1") { onDolphinClicked(); return; }
     const c = ent.ref && ent.ref.content;
-    if (c) openXP({ title: c.title, icon: c.icon, html: c.html }, e.clientX, e.clientY, () => {}, () => {});
-    else openXP({ title: "Local Disk (C:)", icon: "info", html: genericFallback(ent.name) }, e.clientX, e.clientY, () => {}, () => {});
+    if (c) openXP({ title: ent.name, icon: c.icon, html: c.html }, e.clientX, e.clientY, () => {}, () => {});
+    else openXP({ title: ent.name, icon: "info", html: genericFallback(ent.name) }, e.clientX, e.clientY, () => {}, () => {});
     return;
   }
   if (p.type === "water") {
@@ -539,11 +560,11 @@ const SETTINGS = {
 
   // Water rings: cosmetic ripples where you click + persistent fishing "bites".
   drawWaterRings: true,
-  clickRippleLife: 1.6,        // seconds a click ripple lives
-  clickRippleMaxR: 12,         // internal px it expands to
+  clickRippleLife: 1.9,        // seconds a click ripple lives
+  clickRippleMaxR: 17,         // internal px it expands to
   clickRippleRings: 3,
   fishingRingCount: 2,         // how many catchable bites float at once
-  fishingRingMaxR: 9,          // internal px the bite rings pulse to
+  fishingRingMaxR: 12,         // internal px the bite rings pulse to
 
   // Location-aware sand sparkle: tiny glints, strongest at sunrise/sunset.
   drawSandSparkle: true,
@@ -1580,17 +1601,21 @@ const fishImg = document.getElementById("fish-img");
 let fishHolding = null; // { key, rect } once a catch is on screen
 
 const CATCH = [
-  { key: "fish1", weight: 10 }, { key: "fish2", weight: 10 }, { key: "fish3", weight: 10 },
-  { key: "fish4", weight: 10 }, { key: "fish5", weight: 10 }, { key: "fish6", weight: 10 },
-  { key: "fish7", weight: 10 }, { key: "octopus1", weight: 2 }, // octopus is the rare catch
+  { key: "fish1", weight: 10, name: "Emperor Angelfish" },
+  { key: "fish2", weight: 10, name: "Yellow Tang" },
+  { key: "fish3", weight: 10, name: "Copperband Butterflyfish" },
+  { key: "fish4", weight: 10, name: "Regal Angelfish" },
+  { key: "fish5", weight: 10, name: "Clownfish" },
+  { key: "fish6", weight: 10, name: "Flame Anthias" },
+  { key: "fish7", weight: 10, name: "Blue Tang" },
+  { key: "octopus1", weight: 2, name: "Octopus" }, // the rare catch
 ];
 function pickCatch() {
   let tot = 0; for (const c of CATCH) tot += c.weight;
   let r = Math.random() * tot;
-  for (const c of CATCH) { r -= c.weight; if (r <= 0) return c.key; }
-  return CATCH[0].key;
+  for (const c of CATCH) { r -= c.weight; if (r <= 0) return c; }
+  return CATCH[0];
 }
-const prettyCatch = (key) => key.startsWith("octopus") ? "You caught an octopus!" : "You caught a fish!";
 
 function fishHolderTransformAt(rect) {
   const bigW = fishImg.offsetWidth || (Math.min(window.innerWidth, window.innerHeight) * 0.54);
@@ -1605,15 +1630,15 @@ function reelIn(ringIndex) {
   const fr = fishingRings[ringIndex];
   if (!fr) return;
   fishingRings.splice(ringIndex, 1); // consume the bite
-  const key = pickCatch();
+  const caught = pickCatch();
   const rect = {
     cx: lastMap.dx + fr.x * lastMap.scale,
     cy: lastMap.dy + fr.y * lastMap.scale,
     r: SETTINGS.fishingRingMaxR * lastMap.scale,
   };
-  fishHolding = { key, rect };
+  fishHolding = { key: caught.key, name: caught.name, rect };
   playCatchSound();
-  fishImg.src = "./assets/" + key + ".png";
+  fishImg.src = "./assets/" + caught.key + ".png";
   fishStage.hidden = false;
   requestAnimationFrame(() => {
     fishHolder.style.transition = "none";
@@ -1629,7 +1654,7 @@ function reelIn(ringIndex) {
 fishStage.addEventListener("click", (e) => {
   if (!fishHolding || xpOpen()) return;
   openXP(
-    { title: "Local Disk (C:)", icon: "info", html: `<div class="name">${prettyCatch(fishHolding.key)}</div>`, okLabel: "OK", secondLabel: "Release the fish" },
+    { title: "Local Fish (Sea:)", icon: "info", html: `<div class="name">You caught a ${fishHolding.name}!</div>`, okLabel: "OK", secondLabel: "Release the fish" },
     e.clientX, e.clientY,
     () => {},            // OK = keep looking at it
     () => {},            // X = keep looking at it

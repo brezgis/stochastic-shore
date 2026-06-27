@@ -273,7 +273,7 @@ function updateItems(dt) {
       it.alpha = Math.min(1, it.alpha + dt / LIFE.fadeIn);
       if (it.alpha >= 1) it.state = 'resting';
     } else if (it.state === 'leaving') {
-      it.alpha -= dt / LIFE.fadeOut;
+      it.alpha -= dt / (it.fastLeave ? 0.5 : LIFE.fadeOut);
     }
   }
   items = items.filter((it) => it.held || it.alpha > 0.01);
@@ -347,7 +347,7 @@ function updateCreatures(dt, t) {
       c.alpha = Math.min(1, c.alpha + dt / LIFE.fadeIn);
       if (c.alpha >= 1) c.state = 'roaming';
     } else if (c.state === 'leaving') {
-      c.alpha -= dt / LIFE.fadeOut;
+      c.alpha -= dt / (c.fastLeave ? 0.5 : LIFE.fadeOut);
     } else if (c.age > c.life) {
       c.state = 'leaving';
     }
