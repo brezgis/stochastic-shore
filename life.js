@@ -91,7 +91,7 @@ const CREATURES = [
   { key: 'hemit_crab2', file: 'hemit_crab2.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'hermit_crab3', file: 'hermit_crab3.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'seagull1', file: 'seagull1.png', w: 56, weight: 4, profile: 'gull', nativeRight: true },
-  { key: 'seagull_2', file: 'seagull_2.png', w: 54, weight: 4, profile: 'gull', nativeRight: true },
+  { key: 'seagull_2', file: 'seagull_2.png', w: 74, weight: 4, profile: 'gull', nativeRight: true },
   { key: 'sea_bird1', file: 'sea_bird1.png', w: 60, weight: 4, profile: 'gull', nativeRight: false },
   { key: 'horseshoe_crab1', file: 'horseshoe_crab1.png', w: 48, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
   { key: 'horseshoe_crab2', file: 'horseshoe_crab2.png', w: 44, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
@@ -147,6 +147,7 @@ const triOffset = (spread) => (Math.random() + Math.random() - 1) * spread;
 
 function pickWeighted(list, exclude) {
   const pool = exclude ? list.filter(exclude) : list;
+  if (!pool.length) return null;
   let total = 0;
   for (const e of pool) total += e.weight;
   let r = Math.random() * total;
@@ -173,6 +174,16 @@ function pointInBand(band, y) {
 // ----------------------------------------------------------------------------
 function activeShellCount() {
   return items.filter((it) => it.def.shell && it.state !== 'leaving').length;
+}
+
+// At most one of each kind on the beach at a time -> a varied mix, never four
+// of the same shell. Ensures the minimum number of (distinct) shells first.
+function chooseItemDef() {
+  const activeKeys = new Set(items.filter((it) => it.state !== 'leaving').map((it) => it.def.key));
+  const needShell = activeShellCount() < LIFE.minShells;
+  return needShell
+    ? pickWeighted(ITEMS, (e) => e.shell && !activeKeys.has(e.key))
+    : pickWeighted(ITEMS, (e) => !activeKeys.has(e.key));
 }
 
 // The scene is cover-scaled (cropped) to fill the window, so the internal
@@ -270,10 +281,8 @@ function updateItems(dt) {
     tItemSpawn = rand(...LIFE.itemSpawnEvery);
     const active = items.filter((it) => it.state !== 'leaving').length;
     if (active < itemTarget) {
-      const def = activeShellCount() < LIFE.minShells
-        ? pickWeighted(ITEMS, (e) => e.shell)
-        : pickWeighted(ITEMS);
-      spawnItem(def, false);
+      const def = chooseItemDef();
+      if (def) spawnItem(def, false);
     }
   }
 
@@ -516,10 +525,8 @@ function seedInitial() {
 
   for (let i = 0; i < itemTarget; i++) {
     at(delay, () => {
-      const def = activeShellCount() < LIFE.minShells
-        ? pickWeighted(ITEMS, (e) => e.shell)
-        : pickWeighted(ITEMS);
-      spawnItem(def, false); // fade in
+      const def = chooseItemDef();
+      if (def) spawnItem(def, false); // fade in
     });
     delay += STAGGER;
   }
