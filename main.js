@@ -1609,7 +1609,55 @@ const CATCH = [
   { key: "fish6", weight: 10, name: "Flame Anthias" },
   { key: "fish7", weight: 10, name: "Blue Tang" },
   { key: "octopus1", weight: 2, name: "Octopus" }, // the rare catch
+  { key: "fish8", weight: 10, name: "Black Sea Bream" },
+  { key: "fish9", weight: 10, name: "Tiger Barb" },
+  { key: "fish10", weight: 10, name: "Common Roach" },
+  { key: "fish11", weight: 10, name: "Lookdown" },
+  { key: "fish12", weight: 10, name: "Flounder" },
+  { key: "fish13", weight: 10, name: "Florida Pompano" },
+  { key: "fish14", weight: 10, name: "Crucian Carp" },
+  { key: "fish15", weight: 10, name: "Yellowtail" },
+  { key: "fish16", weight: 10, name: "Sardine" },
+  { key: "fish17", weight: 10, name: "Red Snapper" },
+  { key: "fish18", weight: 10, name: "Ocellaris Clownfish" },
+  { key: "fish19", weight: 10, name: "Percula Clownfish" },
+  { key: "fish20", weight: 10, name: "Nile Tilapia" },
+  { key: "fish21", weight: 10, name: "Greater Amberjack" },
+  { key: "fish22", weight: 10, name: "Sergeant Major" },
+  { key: "fish23", weight: 10, name: "Red Mullet" },
+  { key: "lobster1", weight: 5, name: "Lobster" },
+  { key: "lobster2", weight: 5, name: "Lobster" },
+  { key: "lobster3", weight: 5, name: "Lobster" },
+  { key: "lobster4", weight: 5, name: "Lobster" },
+  { key: "lobster5", weight: 5, name: "Lobster" },
+  { key: "seahorse1", weight: 5, name: "Seahorse" },
+  { key: "seahorse2", weight: 5, name: "Seahorse" },
+  { key: "seahorse3", weight: 5, name: "Seahorse" },
+  { key: "jellyfish1", weight: 3, name: "Jellyfish" },
+  { key: "jellyfish2", weight: 3, name: "Jellyfish" },
+  { key: "jellyfish3", weight: 3, name: "Jellyfish" },
+  { key: "jellyfish4", weight: 3, name: "Jellyfish" },
+  { key: "jellyfish5", weight: 3, name: "Jellyfish" },
+  { key: "shrimp1", weight: 5, name: "Shrimp" },
 ];
+// Class-balanced catch odds: each kind gets a fixed share split among members,
+// so the 23 fish don't crowd out lobster/seahorse/jellyfish/shrimp/octopus.
+const CATCH_CLASS_SHARE = { fish: 60, lobster: 12, seahorse: 8, shrimp: 6, jellyfish: 6, octopus: 2 };
+function catchClass(c) {
+  const k = c.key;
+  if (/^lobster/.test(k)) return 'lobster';
+  if (/^seahorse/.test(k)) return 'seahorse';
+  if (/^shrimp/.test(k)) return 'shrimp';
+  if (/^jellyfish/.test(k)) return 'jellyfish';
+  if (/^octopus/.test(k)) return 'octopus';
+  return 'fish';
+}
+(() => {
+  const sums = {};
+  for (const c of CATCH) { const cl = catchClass(c); sums[cl] = (sums[cl] || 0) + c.weight; }
+  for (const c of CATCH) { const cl = catchClass(c); if (CATCH_CLASS_SHARE[cl] != null && sums[cl]) c.weight = CATCH_CLASS_SHARE[cl] * (c.weight / sums[cl]); }
+})();
+
 function pickCatch() {
   let tot = 0; for (const c of CATCH) tot += c.weight;
   let r = Math.random() * tot;

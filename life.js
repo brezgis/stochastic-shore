@@ -68,6 +68,82 @@ const ITEMS = [
   { key: 'megalodon_tooth', file: 'megalodon_tooth.png', w: 24, weight: 1 },
   { key: 'message_in_bottle_1', file: 'message_in_bottle_1.png', w: 38, weight: 1.5 },
   { key: 'message_in_bottle_2', file: 'message_in_bottle_2.png', w: 40, weight: 1.5 },
+  { key: 'shell13', file: 'shell13.png', w: 26, weight: 2, shell: true },
+  { key: 'shell14', file: 'shell14.png', w: 26, weight: 2, shell: true },
+  { key: 'shell15', file: 'shell15.png', w: 26, weight: 2, shell: true },
+  { key: 'shell16', file: 'shell16.png', w: 26, weight: 2, shell: true },
+  { key: 'shell17', file: 'shell17.png', w: 26, weight: 2, shell: true },
+  { key: 'shell18', file: 'shell18.png', w: 26, weight: 2, shell: true },
+  { key: 'shell19', file: 'shell19.png', w: 26, weight: 2, shell: true },
+  { key: 'shell20', file: 'shell20.png', w: 26, weight: 2, shell: true },
+  { key: 'shell21', file: 'shell21.png', w: 26, weight: 2, shell: true },
+  { key: 'shell22', file: 'shell22.png', w: 26, weight: 2, shell: true },
+  { key: 'shell23', file: 'shell23.png', w: 26, weight: 2, shell: true },
+  { key: 'shell24', file: 'shell24.png', w: 26, weight: 2, shell: true },
+  { key: 'shell25', file: 'shell25.png', w: 26, weight: 2, shell: true },
+  { key: 'shell26', file: 'shell26.png', w: 26, weight: 2, shell: true },
+  { key: 'shell27', file: 'shell27.png', w: 26, weight: 2, shell: true },
+  { key: 'shell28', file: 'shell28.png', w: 26, weight: 2, shell: true },
+  { key: 'shell29', file: 'shell29.png', w: 26, weight: 2, shell: true },
+  { key: 'shell30', file: 'shell30.png', w: 26, weight: 2, shell: true },
+  { key: 'shell31', file: 'shell31.png', w: 26, weight: 2, shell: true },
+  { key: 'shell32', file: 'shell32.png', w: 26, weight: 2, shell: true },
+  { key: 'shell33', file: 'shell33.png', w: 26, weight: 2, shell: true },
+  { key: 'shell34', file: 'shell34.png', w: 26, weight: 2, shell: true },
+  { key: 'shell35', file: 'shell35.png', w: 26, weight: 2, shell: true },
+  { key: 'shell36', file: 'shell36.png', w: 26, weight: 2, shell: true },
+  { key: 'shell37', file: 'shell37.png', w: 26, weight: 2, shell: true },
+  { key: 'shell38', file: 'shell38.png', w: 26, weight: 2, shell: true },
+  { key: 'shell39', file: 'shell39.png', w: 26, weight: 2, shell: true },
+  { key: 'shell40', file: 'shell40.png', w: 26, weight: 2, shell: true },
+  { key: 'shell41', file: 'shell41.png', w: 26, weight: 2, shell: true },
+  { key: 'shell42', file: 'shell42.png', w: 26, weight: 2, shell: true },
+  { key: 'shell43', file: 'shell43.png', w: 26, weight: 2, shell: true },
+  { key: 'shell44', file: 'shell44.png', w: 26, weight: 2, shell: true },
+  { key: 'shell45', file: 'shell45.png', w: 26, weight: 2, shell: true },
+  { key: 'shell46', file: 'shell46.png', w: 26, weight: 2, shell: true },
+  { key: 'shell47', file: 'shell47.png', w: 26, weight: 2, shell: true },
+  { key: 'shell48', file: 'shell48.png', w: 26, weight: 2, shell: true },
+  { key: 'shell49', file: 'shell49.png', w: 26, weight: 2, shell: true },
+  { key: 'shell50', file: 'shell50.png', w: 26, weight: 2, shell: true },
+  { key: 'shell51', file: 'shell51.png', w: 26, weight: 2, shell: true },
+  { key: 'shell52', file: 'shell52.png', w: 26, weight: 2, shell: true },
+  { key: 'conch1', file: 'conch1.png', w: 30, weight: 2, shell: true },
+  { key: 'conch2', file: 'conch2.png', w: 30, weight: 2, shell: true },
+  { key: 'conch3', file: 'conch3.png', w: 30, weight: 2, shell: true },
+  { key: 'conch4', file: 'conch4.png', w: 30, weight: 2, shell: true },
+  { key: 'conch5', file: 'conch5.png', w: 30, weight: 2, shell: true },
+  { key: 'conch6', file: 'conch6.png', w: 30, weight: 2, shell: true },
+  { key: 'conch7', file: 'conch7.png', w: 30, weight: 2, shell: true },
+  { key: 'conch8', file: 'conch8.png', w: 30, weight: 2, shell: true },
+  { key: 'conch9', file: 'conch9.png', w: 30, weight: 2, shell: true },
+  { key: 'conch10', file: 'conch10.png', w: 30, weight: 2, shell: true },
+  { key: 'conch11', file: 'conch11.png', w: 30, weight: 2, shell: true },
+  { key: 'conch12', file: 'conch12.png', w: 30, weight: 2, shell: true },
+  { key: 'conch13', file: 'conch13.png', w: 30, weight: 2, shell: true },
+  { key: 'conch14', file: 'conch14.png', w: 30, weight: 2, shell: true },
+  { key: 'conch15', file: 'conch15.png', w: 30, weight: 2, shell: true },
+  { key: 'conch16', file: 'conch16.png', w: 30, weight: 2, shell: true },
+  { key: 'conch17', file: 'conch17.png', w: 30, weight: 2, shell: true },
+  { key: 'conch18', file: 'conch18.png', w: 30, weight: 2, shell: true },
+  { key: 'conch19', file: 'conch19.png', w: 30, weight: 2, shell: true },
+  { key: 'conch20', file: 'conch20.png', w: 30, weight: 2, shell: true },
+  { key: 'conch21', file: 'conch21.png', w: 30, weight: 2, shell: true },
+  { key: 'conch22', file: 'conch22.png', w: 30, weight: 2, shell: true },
+  { key: 'conch23', file: 'conch23.png', w: 30, weight: 2, shell: true },
+  { key: 'conch24', file: 'conch24.png', w: 30, weight: 2, shell: true },
+  { key: 'conch25', file: 'conch25.png', w: 30, weight: 2, shell: true },
+  { key: 'conch26', file: 'conch26.png', w: 30, weight: 2, shell: true },
+  { key: 'sea_star_4', file: 'sea_star_4.png', w: 28, weight: 4 },
+  { key: 'sea_star_5', file: 'sea_star_5.png', w: 28, weight: 4 },
+  { key: 'sea_star_6', file: 'sea_star_6.png', w: 28, weight: 4 },
+  { key: 'sea_star_7', file: 'sea_star_7.png', w: 28, weight: 4 },
+  { key: 'sea_star_8', file: 'sea_star_8.png', w: 28, weight: 4 },
+  { key: 'sea_star_9', file: 'sea_star_9.png', w: 28, weight: 4 },
+  { key: 'sea_star_10', file: 'sea_star_10.png', w: 28, weight: 4 },
+  { key: 'sea_star_11', file: 'sea_star_11.png', w: 28, weight: 4 },
+  { key: 'sea_star_12', file: 'sea_star_12.png', w: 28, weight: 4 },
+  { key: 'sea_star_13', file: 'sea_star_13.png', w: 28, weight: 4 },
 ];
 
 // Behaviour profiles. band = [minOffset, maxOffset] from the shoreline edge
@@ -97,11 +173,73 @@ const CREATURES = [
   { key: 'horseshoe_crab2', file: 'horseshoe_crab2.png', w: 44, weight: 2.5, profile: 'horseshoe', fromWater: true, solo: true },
   { key: 'sea_turtle', file: 'sea_turtle.png', w: 82, weight: 0.4, profile: 'turtle', fromWater: true, solo: true },
   { key: 'dolphin1', file: 'dolphin1.png', w: 78, weight: 0.5, profile: 'dolphin', nativeRight: true, fromWater: true, solo: true },
+  { key: 'crab3', file: 'crab3.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab4', file: 'crab4.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab5', file: 'crab5.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab6', file: 'crab6.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab7', file: 'crab7.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab8', file: 'crab8.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab9', file: 'crab9.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab10', file: 'crab10.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab11', file: 'crab11.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab12', file: 'crab12.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab13', file: 'crab13.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab14', file: 'crab14.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab15', file: 'crab15.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab16', file: 'crab16.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab17', file: 'crab17.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab18', file: 'crab18.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'crab19', file: 'crab19.png', w: 50, weight: 1.2, profile: 'crab', nativeRight: true },
+  { key: 'sea_turtle2', file: 'sea_turtle2.png', w: 80, weight: 0.4, profile: 'turtle', fromWater: true, solo: true },
+  { key: 'sea_turtle3', file: 'sea_turtle3.png', w: 80, weight: 0.4, profile: 'turtle', fromWater: true, solo: true },
+  { key: 'sea_turtle4', file: 'sea_turtle4.png', w: 80, weight: 0.4, profile: 'turtle', fromWater: true, solo: true },
+  { key: 'sea_turtle5', file: 'sea_turtle5.png', w: 80, weight: 0.4, profile: 'turtle', fromWater: true, solo: true },
+  { key: 'sea_turtle6', file: 'sea_turtle6.png', w: 80, weight: 0.4, profile: 'turtle', fromWater: true, solo: true },
 ];
 
 // ----------------------------------------------------------------------------
 // Module state
 // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// Class-balanced spawn weighting
+// ----------------------------------------------------------------------------
+// Each spawn CLASS gets a fixed share of the spawn probability; that share is
+// split among the class's members by their literal weights above. So adding
+// more members to a class (e.g. lots of new shells) no longer inflates the
+// class — it just subdivides the class's slice, keeping classes balanced no
+// matter how many sprites each one has. Tune the shares here.
+const ITEM_CLASS_SHARE = {
+  shell: 30, starfish: 12, coral: 8, seaweed: 8, sea_glass: 8,
+  sand_dollar: 7, sea_cucumber: 7, shark_tooth: 4, message: 3, megalodon: 1,
+};
+const CREATURE_CLASS_SHARE = {
+  sandpiper: 18, gull: 18, crab: 18, hermit: 18, horseshoe: 6, turtle: 3, dolphin: 2,
+};
+function itemClass(e) {
+  if (e.shell) return 'shell';
+  const k = e.key;
+  if (/^sea_star/.test(k)) return 'starfish';
+  if (/^coral/.test(k)) return 'coral';
+  if (/^seaweed/.test(k)) return 'seaweed';
+  if (k === 'sea_glass') return 'sea_glass';
+  if (k === 'sand_dollar') return 'sand_dollar';
+  if (/^sea_cucumber/.test(k)) return 'sea_cucumber';
+  if (/^shark_tooth/.test(k)) return 'shark_tooth';
+  if (/^message_in_bottle/.test(k)) return 'message';
+  if (k === 'megalodon_tooth') return 'megalodon';
+  return null;
+}
+function rebalanceByClass(list, shareMap, classFn) {
+  const sums = {};
+  for (const e of list) { const c = classFn(e); if (c && shareMap[c] != null) sums[c] = (sums[c] || 0) + e.weight; }
+  for (const e of list) {
+    const c = classFn(e);
+    if (c && shareMap[c] != null && sums[c]) e.weight = shareMap[c] * (e.weight / sums[c]);
+  }
+}
+rebalanceByClass(ITEMS, ITEM_CLASS_SHARE, itemClass);
+rebalanceByClass(CREATURES, CREATURE_CLASS_SHARE, (e) => e.profile);
+
 let W = 640, H = 360;
 let getShoreline = () => [];
 let onWake = null;         // optional (x,y,t) callback when a water creature swims

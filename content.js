@@ -137,7 +137,7 @@ const CATS = {
 
 function categoryFor(key) {
   if (/^(crab|hermit|hemit)/.test(key)) return "philo";
-  if (key === "sea_turtle") return "longview";
+  if (/^sea_turtle/.test(key)) return "longview";
   if (/^horseshoe/.test(key)) return "deeptime";
   if (/^sandpiper/.test(key)) return "quip";
   if (/^(seagull|sea_bird)/.test(key)) return null; // gulls deferred
