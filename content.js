@@ -136,7 +136,7 @@ const CATS = {
 };
 
 function categoryFor(key) {
-  if (/^(crab|hermit|hemit)/.test(key)) return "philo";
+  if (/^(crab|hermit)/.test(key)) return "philo";
   if (/^sea_turtle/.test(key)) return "longview";
   if (/^horseshoe/.test(key)) return "deeptime";
   if (/^sandpiper/.test(key)) return "quip";

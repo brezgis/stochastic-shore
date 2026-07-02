@@ -164,7 +164,7 @@ const CREATURES = [
   { key: 'sandpiper_2', file: 'sandpiper_2.png', w: 46, weight: 10, profile: 'sandpiper', nativeRight: true },
   { key: 'crab2', file: 'crab2.png', w: 52, weight: 7, profile: 'crab', nativeRight: true },
   { key: 'hermit_crab1', file: 'hermit_crab1.png', w: 32, weight: 6, profile: 'hermit', nativeRight: true },
-  { key: 'hemit_crab2', file: 'hemit_crab2.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
+  { key: 'hermit_crab2', file: 'hermit_crab2.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'hermit_crab3', file: 'hermit_crab3.png', w: 28, weight: 6, profile: 'hermit', nativeRight: true },
   { key: 'seagull1', file: 'seagull1.png', w: 56, weight: 4, profile: 'gull', nativeRight: true },
   { key: 'seagull_2', file: 'seagull_2.png', w: 27, weight: 4, profile: 'gull', nativeRight: true },
@@ -229,7 +229,8 @@ function itemClass(e) {
   if (k === 'megalodon_tooth') return 'megalodon';
   return null;
 }
-function rebalanceByClass(list, shareMap, classFn) {
+// Shared with main.js's fishing catch table — same algorithm, one home.
+export function rebalanceByClass(list, shareMap, classFn) {
   const sums = {};
   for (const e of list) { const c = classFn(e); if (c && shareMap[c] != null) sums[c] = (sums[c] || 0) + e.weight; }
   for (const e of list) {
@@ -279,14 +280,14 @@ export function pickAt(px, py) {
 // ----------------------------------------------------------------------------
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // Skewed integer in [min,max]; exp>1 biases toward min (so max is rare).
 const biasedTarget = (min, max, exp) => Math.round(min + (max - min) * Math.pow(Math.random(), exp));
 // Triangular noise in [-spread, spread], dense in the middle (a cheap bell shape).
 const triOffset = (spread) => (Math.random() + Math.random() - 1) * spread;
 
-function pickWeighted(list, exclude) {
-  const pool = exclude ? list.filter(exclude) : list;
+// keep: optional predicate — only entries it accepts stay in the pool.
+function pickWeighted(list, keep) {
+  const pool = keep ? list.filter(keep) : list;
   if (!pool.length) return null;
   let total = 0;
   for (const e of pool) total += e.weight;
@@ -456,6 +457,7 @@ function newTarget(c) {
 function spawnCreature() {
   const def = pickWeighted(CREATURES, (e) =>
     !(e.solo && creatures.some((c) => c.def.key === e.key && c.state !== 'leaving')));
+  if (!def) return;
   const prof = PROFILES[def.profile];
   const y = rand(H * 0.12, H * 0.88);
   const e = edgeAt(y);

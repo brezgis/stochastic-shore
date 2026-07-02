@@ -1,4 +1,4 @@
-import { initLife, updateAndDrawLife, pickAt } from "./life.js";
+import { initLife, updateAndDrawLife, pickAt, rebalanceByClass } from "./life.js";
 import { nextStation } from "./stations.js";
 
 const canvas = document.getElementById("shore");
@@ -132,9 +132,23 @@ function startHold() {
 
   shellAudio.src = station.url;
   shellAudio.volume = 0.03;
+  retuneCount = 0;
   shellAudio.play().catch(() => {});
   rampVolume(SHELL_VOLUME, 2200); // swells in slowly and continuously as it comes close
 }
+
+// Community streams die sometimes. Rather than holding a dead shell to your
+// ear, drift to the next station on the dial (a few tries, then give up).
+let retuneCount = 0;
+shellAudio.addEventListener("error", () => {
+  if (!holding || shellStage.hidden || retuneCount >= 3) return;
+  retuneCount++;
+  const station = nextStation();
+  holding.station = station;
+  holding.ref.station = station; // the shell remembers its new frequency
+  shellAudio.src = station.url;
+  shellAudio.play().catch(() => {});
+});
 
 shellStage.addEventListener("click", (e) => {
   if (!holding || xpOpen()) return;
@@ -270,7 +284,7 @@ const genericFallback = (name) =>
 // A press becomes a DRAG past this many px; otherwise it's a CLICK.
 const DRAG_THRESH = 5;
 const SAND_MARK_LIFE = 45;                                  // seconds a sand line lingers
-const SKITTER = /^(crab|hermit|hemit|horseshoe|sandpiper|seagull|sea_bird)/; // critters you can move
+const SKITTER = /^(crab|hermit|horseshoe|sandpiper|seagull|sea_bird)/; // critters you can move
 const GULL = /^(seagull|sea_bird)/;     // grumpy: errors when grabbed, won't swim
 const NO_WATER = /^(sandpiper|seagull|sea_bird)/; // birds hop back out of the sea
 let sandStrokes = [];                                       // [{points, born}]
@@ -282,6 +296,7 @@ function playErrorSound() {
   try {
     errAudioCtx = errAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const ac = errAudioCtx, now = ac.currentTime;
+    if (ac.state === "suspended") ac.resume();
     [196.0, 146.83].forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.type = "square"; o.frequency.value = f;
@@ -300,6 +315,7 @@ function playCatchSound() {
   try {
     errAudioCtx = errAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const ac = errAudioCtx, now = ac.currentTime;
+    if (ac.state === "suspended") ac.resume();
     [523.25, 659.25, 783.99].forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.type = "sine"; o.frequency.value = f;
@@ -332,13 +348,18 @@ function classifyDown(e) {
   return { type: "none" };
 }
 
-canvas.addEventListener("mousedown", (e) => {
+// Pointer events cover mouse AND touch (canvas has touch-action:none so the
+// browser doesn't hijack drags for scrolling/zoom). Only the primary pointer
+// interacts — a second finger is ignored.
+canvas.addEventListener("pointerdown", (e) => {
+  if (!e.isPrimary || ptr) return;
   if (xpOpen() || holding || gullActive || fishHolding) return;
   e.preventDefault();
   ptr = { ...classifyDown(e), startX: e.clientX, startY: e.clientY, dragging: false };
 });
 
-canvas.addEventListener("mousemove", (e) => {
+canvas.addEventListener("pointermove", (e) => {
+  if (!e.isPrimary) return;
   if (!ptr) {
     if (xpOpen() || holding || gullActive || fishHolding) { canvas.style.cursor = "default"; return; }
     const over = pickAt(e.clientX, e.clientY) || fishingRingAt(e.clientX, e.clientY) >= 0;
@@ -352,11 +373,19 @@ canvas.addEventListener("mousemove", (e) => {
   if (ptr.dragging) duringDrag(ptr, e);
 });
 
-window.addEventListener("mouseup", (e) => {
-  if (!ptr) return;
+window.addEventListener("pointerup", (e) => {
+  if (!e.isPrimary || !ptr) return;
   const p = ptr; ptr = null;
   if (p.dragging) endDrag(p, e);
   else plainClick(p, e);
+});
+
+// Pointer taken away mid-gesture (alt-tab, palm rejection, browser gesture):
+// settle any drag where it stands, never treat it as a click.
+window.addEventListener("pointercancel", (e) => {
+  if (!ptr) return;
+  const p = ptr; ptr = null;
+  if (p.dragging) endDrag(p, e);
 });
 
 function beginDrag(p, e) {
@@ -618,6 +647,9 @@ let shoreline = [];
 
 // A cached copy of the untouched base image at internal resolution.
 let basePixels = null;
+// Reusable per-frame pixel buffer: the water passes all write into this one
+// buffer (one canvas readback avoided per pass), then it's blitted once.
+let frameBuf = null;
 let nightTwinkles = [];
 let clickRipples = [];   // cosmetic ripples where you click the water
 let fishingRings = [];   // persistent catchable "bites" floating on the water
@@ -635,6 +667,14 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
+base.onerror = () => {
+  // Without the base image there is no beach at all — say so instead of
+  // leaving a silent dark canvas.
+  screen.fillStyle = "#9fb6c0";
+  screen.font = "16px ui-serif, Georgia, serif";
+  screen.fillText("the shore failed to load — refresh to try again", 24, 40);
+  console.error("stochastic-shore: could not load ./shore/base_beach.png");
+};
 base.onload = () => {
   prepareBase();
   buildNightTwinkles();
@@ -655,6 +695,7 @@ function prepareBase() {
   ctx.drawImage(base, 0, 0, RENDER_W, RENDER_H);
 
   basePixels = ctx.getImageData(0, 0, RENDER_W, RENDER_H);
+  frameBuf = ctx.createImageData(RENDER_W, RENDER_H);
   shoreline = detectShoreline(basePixels);
   shoreline = smoothLine(shoreline, 10);
 }
@@ -713,11 +754,14 @@ function loop(ms) {
   const t = ms / 1000;
   const dayTime = currentDayTime(t);
 
-  ctx.putImageData(basePixels, 0, 0);
+  // Start from the clean base, run the pixel passes on one shared buffer,
+  // blit once. (Each pass sees the previous pass's writes, as before.)
+  frameBuf.data.set(basePixels.data);
+  if (SETTINGS.drawWaterMotion) drawWaterMotion(frameBuf.data, t);
+  if (SETTINGS.drawOceanWaveBands) drawOceanWaveBands(frameBuf.data, t, dayTime);
+  drawWetSandWash(frameBuf.data, t);
+  ctx.putImageData(frameBuf, 0, 0);
 
-  if (SETTINGS.drawWaterMotion) drawWaterMotion(t);
-  if (SETTINGS.drawOceanWaveBands) drawOceanWaveBands(t, dayTime);
-  drawWetSandWash(t);
   drawFoamEdge(t);
   if (SETTINGS.drawWaterSparkle) drawWaterSparkle(t);
   if (SETTINGS.drawWaterRings) drawWaterRings(t);
@@ -768,20 +812,10 @@ function currentDayTime(t) {
   return 0;
 }
 
-const PHASE_LABELS = [
-  [0.00, "sunrise"], [0.18, "morning"], [0.25, "midday"],
-  [0.40, "afternoon"], [0.50, "sunset"], [0.62, "dusk"],
-  [0.75, "night"], [0.92, "late night"],
-];
-function phaseLabel(dayTime) {
-  let label = "sunrise";
-  for (const [t, name] of PHASE_LABELS) { if (dayTime >= t) label = name; }
-  return label;
-}
-
 let lastHudText = "";
+const hudMeta = document.getElementById("meta");
 function updateClockHud(dayTime) {
-  const meta = document.getElementById("meta");
+  const meta = hudMeta;
   if (!meta) return;
   const now = new Date();
   const clock = SETTINGS.useRealClock
@@ -811,9 +845,7 @@ function drawToScreen() {
 // WATER MOVEMENT / SPARKLE
 // -----------------------------
 
-function drawWaterMotion(t) {
-  const imageData = ctx.getImageData(0, 0, RENDER_W, RENDER_H);
-  const pixels = imageData.data;
+function drawWaterMotion(pixels, t) {
   const speed = SETTINGS.waterMotionSpeed;
 
   for (let y = 0; y < RENDER_H; y++) {
@@ -853,8 +885,6 @@ function drawWaterMotion(t) {
       }
     }
   }
-
-  ctx.putImageData(imageData, 0, 0);
 }
 
 function drawWaterSparkle(t) {
@@ -906,10 +936,8 @@ function drawWaterSparkle(t) {
 // SHORE WASH / FOAM
 // -----------------------------
 
-function drawWetSandWash(t) {
+function drawWetSandWash(pixels, t) {
   const phase = softLap(t);
-  const data = ctx.getImageData(0, 0, RENDER_W, RENDER_H);
-  const pixels = data.data;
 
   for (let y = 0; y < RENDER_H; y++) {
     const edge = shoreline[y];
@@ -938,8 +966,6 @@ function drawWetSandWash(t) {
       }
     }
   }
-
-  ctx.putImageData(data, 0, 0);
 }
 
 function drawFoamEdge(t) {
@@ -1207,16 +1233,10 @@ function buildNightTwinkles() {
   }
 }
 
-function drawOceanWaveBands(t, dayTime = 0.33) {
+function drawOceanWaveBands(pixels, t, dayTime = 0.33) {
   // Subtle open-ocean swells: moving wave bands inside the water, separate
   // from the shoreline foam. They echo the curve of the beach but stay offshore.
-  const atmosphere = typeof getAtmosphere === "function"
-    ? getAtmosphere(dayTime)
-    : { nightFactor: 0 };
-
-  const nightFactor = atmosphere.nightFactor || 0;
-  const imageData = ctx.getImageData(0, 0, RENDER_W, RENDER_H);
-  const pixels = imageData.data;
+  const nightFactor = getAtmosphere(dayTime).nightFactor || 0;
 
   const speed = SETTINGS.oceanWaveSpeed;
   const spacing = SETTINGS.oceanWaveSpacing;
@@ -1286,8 +1306,6 @@ function drawOceanWaveBands(t, dayTime = 0.33) {
       }
     }
   }
-
-  ctx.putImageData(imageData, 0, 0);
 }
 
 function drawSandSparkle(t, dayTime) {
@@ -1459,7 +1477,7 @@ function drawNightTwinklesOverlay(t, nightFactor) {
   ctx.save();
 
   for (const s of nightTwinkles) {
-    const edge = shoreline[Math.floor(clamp255(s.y))];
+    const edge = edgeAtInternal(s.y);
     if (s.x < edge + 16) continue;
 
     const pulse = 0.5 + 0.5 * Math.sin(t * s.speed + s.phase);
@@ -1652,11 +1670,7 @@ function catchClass(c) {
   if (/^octopus/.test(k)) return 'octopus';
   return 'fish';
 }
-(() => {
-  const sums = {};
-  for (const c of CATCH) { const cl = catchClass(c); sums[cl] = (sums[cl] || 0) + c.weight; }
-  for (const c of CATCH) { const cl = catchClass(c); if (CATCH_CLASS_SHARE[cl] != null && sums[cl]) c.weight = CATCH_CLASS_SHARE[cl] * (c.weight / sums[cl]); }
-})();
+rebalanceByClass(CATCH, CATCH_CLASS_SHARE, catchClass);
 
 function pickCatch() {
   let tot = 0; for (const c of CATCH) tot += c.weight;

@@ -14,6 +14,7 @@
       canvas {
         display: block; width: 100vw; height: 100vh;
         image-rendering: pixelated; image-rendering: crisp-edges;
+        touch-action: none; /* pointer events own touch — no scroll/zoom hijack */
       }
       #hud {
         position: fixed; left: 20px; bottom: 18px; color: #eef3f7;
