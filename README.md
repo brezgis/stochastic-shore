@@ -2,6 +2,8 @@
 
 A small, drifting beach you can visit. → **[shore.brezgis.com](https://shore.brezgis.com)**
 
+![The shore in midafternoon: a seagull and a sandpiper at the waterline, shells, a sea star, and coral strung along the wrack line, pixel surf glittering beyond.](docs/screenshot.png)
+
 The shore breathes with your real local clock — sunrise around 6am, dusk around 6pm — and the tide leaves things behind. Shells, sea glass, coral, the odd message in a bottle wash up along the wrack line and drift out again. Photoreal creatures wander the sand over a pixel-animated sea: sandpipers dart, hermit crabs trundle, a sea turtle is rare, and a dolphin is rarer still.
 
 Almost everything is clickable.
@@ -27,7 +29,7 @@ Then open the printed URL. Everything is plain HTML, Canvas 2D, and ES modules.
 
 ## Credits & licensing
 
-- **Code** is free to read and reuse.
+- **Code** is free to read and reuse under the [MIT License](LICENSE).
 - **Texts** are public-domain translations: Plato (Jowett), Confucius (Legge), Laozi (Legge), Marcus Aurelius (Long), and Du Fu (Witter Bynner, *The Jade Mountain*, 1929), via Project Gutenberg and Wikisource.
 - **Radio** is streamed live from public internet stations; all broadcasts belong to their respective stations.
 - **Sound effects** are from the [Freesound](https://freesound.org) community.
